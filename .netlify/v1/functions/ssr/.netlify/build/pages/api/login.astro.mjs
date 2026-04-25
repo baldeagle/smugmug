@@ -3,8 +3,13 @@ import { c as checkPassword, a as createToken } from '../../chunks/auth_VDEDaLTA
 export { renderers } from '../../renderers.mjs';
 
 const GET = async () => {
-  const hasPassword = !!(process.env.ADMIN_PASSWORD || undefined                              );
-  return new Response(JSON.stringify({ envLoaded: hasPassword }), {
+  const pw = process.env.ADMIN_PASSWORD || undefined                              ;
+  return new Response(JSON.stringify({
+    envLoaded: !!pw,
+    length: pw?.length ?? 0,
+    first: pw?.[0] ?? "",
+    last: pw?.[pw.length - 1] ?? ""
+  }), {
     headers: { "Content-Type": "application/json" }
   });
 };

@@ -3,8 +3,13 @@ import { getStore } from "@netlify/blobs";
 import { checkPassword, createToken } from "../../lib/auth";
 
 export const GET: APIRoute = async () => {
-  const hasPassword = !!(process.env.ADMIN_PASSWORD || import.meta.env.ADMIN_PASSWORD);
-  return new Response(JSON.stringify({ envLoaded: hasPassword }), {
+  const pw = process.env.ADMIN_PASSWORD || import.meta.env.ADMIN_PASSWORD;
+  return new Response(JSON.stringify({
+    envLoaded: !!pw,
+    length: pw?.length ?? 0,
+    first: pw?.[0] ?? "",
+    last: pw?.[pw.length - 1] ?? "",
+  }), {
     headers: { "Content-Type": "application/json" },
   });
 };
