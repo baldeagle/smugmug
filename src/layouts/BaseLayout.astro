@@ -1,0 +1,74 @@
+---
+export interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = "Photo gallery" } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/global.css" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <nav class="nav">
+      <div class="nav-inner">
+        <a href="/" class="nav-brand">PhotoGallery</a>
+        <div class="nav-links">
+          <a href="/">Gallery</a>
+          <a href="/admin">Admin</a>
+        </div>
+      </div>
+    </nav>
+    <main class="main">
+      <slot />
+    </main>
+  </body>
+</html>
+
+<style>
+  .nav {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .nav-inner {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+  }
+  .nav-brand {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .nav-brand:hover { color: var(--accent); }
+  .nav-links {
+    display: flex;
+    gap: 20px;
+  }
+  .nav-links a {
+    font-size: 14px;
+    color: var(--text-muted);
+    transition: color 0.15s;
+  }
+  .nav-links a:hover { color: var(--text); }
+  .main {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px;
+  }
+</style>

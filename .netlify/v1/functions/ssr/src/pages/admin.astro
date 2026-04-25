@@ -1,0 +1,130 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import AdminApp from "../components/AdminApp";
+---
+
+<BaseLayout title="Admin" description="Photo gallery admin">
+  <AdminApp client:load />
+</BaseLayout>
+
+<style is:global>
+  .login-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - 200px);
+  }
+  .login-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    width: 100%;
+    max-width: 380px;
+  }
+  .login-card h1 {
+    font-size: 22px;
+    margin-bottom: 8px;
+  }
+  .login-card p {
+    color: var(--text-muted);
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+
+  .admin-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .admin-header h1 {
+    font-size: 22px;
+  }
+
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 24px;
+  }
+  .upload-zone:hover,
+  .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(59, 130, 246, 0.05);
+  }
+  .upload-zone-content p { margin: 4px 0; }
+  .upload-icon {
+    font-size: 36px;
+    color: var(--accent);
+    font-weight: 300;
+  }
+  .upload-hint {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .photo-grid-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .photo-grid-header h2 { font-size: 16px; }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-muted);
+  }
+
+  .admin-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+  }
+  .admin-photo-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .admin-photo-thumb {
+    aspect-ratio: 4/3;
+    overflow: hidden;
+    background: #111;
+  }
+  .admin-photo-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .admin-photo-info {
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+  }
+  .photo-name {
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .photo-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .admin-photo-card .btn-sm {
+    margin: 0 8px 8px;
+    padding: 4px 10px;
+    font-size: 11px;
+    align-self: flex-start;
+  }
+</style>
