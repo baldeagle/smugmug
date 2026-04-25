@@ -62,8 +62,9 @@ export default function AdminApp() {
         showToast(`Uploaded ${data.uploaded.length} photo(s)`, "success");
         checkAuth();
       } else {
-        showToast("Upload failed - are you logged in?", "error");
-        setLoggedIn(false);
+        const text = await res.text();
+        showToast(`Upload failed (${res.status}): ${text}`, "error");
+        if (res.status === 401) setLoggedIn(false);
       }
     } catch {
       showToast("Upload failed", "error");
