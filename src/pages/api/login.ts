@@ -1,14 +1,22 @@
 import type { APIRoute } from "astro";
 import { getStore } from "@netlify/blobs";
-import { checkPassword, createToken } from "../../lib/auth";
+import { checkPassword, createToken, verifyToken } from "../../lib/auth";
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ cookies }) => {
   const pw = process.env.ADMIN_PASSWORD || import.meta.env.ADMIN_PASSWORD;
+  const token = cookies.get("session")?.value;
+  let tokenValid = false;
+  if (token) {
+    tokenValid = await verifyToken(token);
+  }
   return new Response(JSON.stringify({
     envLoaded: !!pw,
     length: pw?.length ?? 0,
     first: pw?.[0] ?? "",
     last: pw?.[pw.length - 1] ?? "",
+    hasCookie: !!token,
+    cookieLength: token?.length ?? 0,
+    tokenValid,
   }), {
     headers: { "Content-Type": "application/json" },
   });

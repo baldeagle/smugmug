@@ -1,5 +1,5 @@
 import { getStore } from '@netlify/blobs';
-import { i as isAuthenticated } from '../../chunks/auth_VDEDaLTA.mjs';
+import { i as isAuthenticated } from '../../chunks/auth_ClMjI-0V.mjs';
 export { renderers } from '../../renderers.mjs';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;

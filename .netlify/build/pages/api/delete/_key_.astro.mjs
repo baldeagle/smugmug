@@ -1,5 +1,5 @@
 import { getStore } from '@netlify/blobs';
-import { i as isAuthenticated, s as sanitizeKey } from '../../../chunks/auth_VDEDaLTA.mjs';
+import { i as isAuthenticated, s as sanitizeKey } from '../../../chunks/auth_ClMjI-0V.mjs';
 export { renderers } from '../../../renderers.mjs';
 
 const DELETE = async ({ params, cookies }) => {

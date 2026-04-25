@@ -1,14 +1,22 @@
 import { getStore } from '@netlify/blobs';
-import { c as checkPassword, a as createToken } from '../../chunks/auth_VDEDaLTA.mjs';
+import { v as verifyToken, c as checkPassword, a as createToken } from '../../chunks/auth_ClMjI-0V.mjs';
 export { renderers } from '../../renderers.mjs';
 
-const GET = async () => {
+const GET = async ({ cookies }) => {
   const pw = process.env.ADMIN_PASSWORD || undefined                              ;
+  const token = cookies.get("session")?.value;
+  let tokenValid = false;
+  if (token) {
+    tokenValid = await verifyToken(token);
+  }
   return new Response(JSON.stringify({
     envLoaded: !!pw,
     length: pw?.length ?? 0,
     first: pw?.[0] ?? "",
-    last: pw?.[pw.length - 1] ?? ""
+    last: pw?.[pw.length - 1] ?? "",
+    hasCookie: !!token,
+    cookieLength: token?.length ?? 0,
+    tokenValid
   }), {
     headers: { "Content-Type": "application/json" }
   });
