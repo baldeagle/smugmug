@@ -2,7 +2,7 @@ import type { APIRoute } from "astro";
 import { getStore } from "@netlify/blobs";
 import { isAuthenticated } from "../../lib/auth";
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024;
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const MAX_FILES = 20;
 
 const IMAGE_SIGNATURES: { name: string; offset: number; bytes: number[] }[] = [
@@ -21,6 +21,22 @@ function validateImageMagicBytes(buffer: ArrayBuffer): boolean {
     );
   });
 }
+
+export const GET: APIRoute = async ({ cookies }) => {
+  try {
+    const authed = await isAuthenticated(cookies);
+    const store = getStore("photos");
+    const { blobs } = await store.list();
+    return new Response(JSON.stringify({ authed, storeOk: true, existingPhotos: blobs.length }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err?.message, stack: err?.stack }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+};
 
 export const POST: APIRoute = async ({ request, cookies }) => {
   try {

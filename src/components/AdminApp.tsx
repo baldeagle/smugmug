@@ -1,5 +1,47 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
+const MAX_UPLOAD_MB = 5;
+const MAX_DIMENSION = 4000;
+
+function resizeFile(file: File): Promise<File> {
+  return new Promise((resolve) => {
+    if (file.size <= MAX_UPLOAD_MB * 1024 * 1024) {
+      resolve(file);
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width <= MAX_DIMENSION && height <= MAX_DIMENSION && file.size <= MAX_UPLOAD_MB * 1024 * 1024) {
+        resolve(file);
+        return;
+      }
+      const scale = Math.min(MAX_DIMENSION / width, MAX_DIMENSION / height, 1);
+      width = Math.round(width * scale);
+      height = Math.round(height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) { resolve(file); return; }
+          const resized = new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), {
+            type: "image/jpeg",
+            lastModified: Date.now(),
+          });
+          resolve(resized);
+        },
+        "image/jpeg",
+        0.85
+      );
+    };
+    img.onerror = () => resolve(file);
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 function Toast({ message, type }: { message: string; type: "success" | "error" }) {
   return <div className={`toast ${type}`}>{message}</div>;
 }
@@ -53,13 +95,18 @@ export default function AdminApp() {
     setUploading(true);
     const formData = new FormData();
     for (const file of files) {
-      formData.append("files", file);
+      const processed = await resizeFile(file);
+      formData.append("files", processed);
     }
     try {
       const res = await fetch("/api/upload", { method: "POST", body: formData });
       if (res.ok) {
         const data = await res.json();
-        showToast(`Uploaded ${data.uploaded.length} photo(s)`, "success");
+        const msgs = [];
+        if (data.uploaded?.length) msgs.push(`Uploaded ${data.uploaded.length} photo(s)`);
+        if (data.errors?.length) msgs.push(`${data.errors.length} failed: ${data.errors.map((e: any) => e.error).join(", ")}`);
+        if (msgs.length === 0) msgs.push("No files were uploaded");
+        showToast(msgs.join(" | "), data.uploaded?.length ? "success" : "error");
         checkAuth();
       } else {
         const text = await res.text();

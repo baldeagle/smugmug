@@ -2,7 +2,7 @@ import { getStore } from '@netlify/blobs';
 import { i as isAuthenticated } from '../../chunks/auth_ClMjI-0V.mjs';
 export { renderers } from '../../renderers.mjs';
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024;
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const MAX_FILES = 20;
 const IMAGE_SIGNATURES = [
   { name: "jpeg", offset: 0, bytes: [255, 216, 255] },
@@ -19,6 +19,21 @@ function validateImageMagicBytes(buffer) {
     );
   });
 }
+const GET = async ({ cookies }) => {
+  try {
+    const authed = await isAuthenticated(cookies);
+    const store = getStore("photos");
+    const { blobs } = await store.list();
+    return new Response(JSON.stringify({ authed, storeOk: true, existingPhotos: blobs.length }), {
+      headers: { "Content-Type": "application/json" }
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err?.message, stack: err?.stack }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+};
 const POST = async ({ request, cookies }) => {
   try {
     if (!await isAuthenticated(cookies)) {
@@ -82,6 +97,7 @@ const POST = async ({ request, cookies }) => {
 
 const _page = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
+  GET,
   POST
 }, Symbol.toStringTag, { value: 'Module' }));
 
