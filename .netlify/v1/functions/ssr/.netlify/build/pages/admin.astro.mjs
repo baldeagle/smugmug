@@ -199,11 +199,24 @@ function AdminApp() {
         ]
       }
     ),
-    /* @__PURE__ */ jsx("div", { className: "photo-grid-header", children: /* @__PURE__ */ jsxs("h2", { children: [
-      photos.length,
-      " photo",
-      photos.length !== 1 ? "s" : ""
-    ] }) }),
+    /* @__PURE__ */ jsxs("div", { className: "photo-grid-header", children: [
+      /* @__PURE__ */ jsxs("h2", { children: [
+        photos.length,
+        " photo",
+        photos.length !== 1 ? "s" : ""
+      ] }),
+      photos.length > 0 && /* @__PURE__ */ jsx("button", { className: "btn-danger", onClick: async () => {
+        if (!confirm(`Delete ALL ${photos.length} photos? This cannot be undone.`)) return;
+        const res = await fetch("/api/delete/__all__", { method: "DELETE" });
+        if (res.ok) {
+          const data = await res.json();
+          showToast(`Deleted ${data.deleted} photo(s)`, "success");
+          checkAuth();
+        } else {
+          showToast("Delete all failed", "error");
+        }
+      }, children: "Delete All" })
+    ] }),
     photos.length === 0 ? /* @__PURE__ */ jsx("div", { className: "empty-state", children: /* @__PURE__ */ jsx("p", { children: "No photos yet. Upload some to get started!" }) }) : /* @__PURE__ */ jsx("div", { className: "admin-grid", children: photos.map((photo) => /* @__PURE__ */ jsxs("div", { className: "admin-photo-card", children: [
       /* @__PURE__ */ jsx("div", { className: "admin-photo-thumb", children: /* @__PURE__ */ jsx("img", { src: `/api/photo/${encodeURIComponent(photo.key)}`, alt: photo.filename, loading: "lazy" }) }),
       /* @__PURE__ */ jsxs("div", { className: "admin-photo-info", children: [

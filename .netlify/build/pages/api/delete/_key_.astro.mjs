@@ -6,6 +6,14 @@ const DELETE = async ({ params, cookies }) => {
   if (!await isAuthenticated(cookies)) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
   }
+  if (params.key === "__all__") {
+    const store2 = getStore("photos");
+    const { blobs } = await store2.list();
+    await Promise.all(blobs.map((b) => store2.delete(b.key)));
+    return new Response(JSON.stringify({ success: true, deleted: blobs.length }), {
+      headers: { "Content-Type": "application/json" }
+    });
+  }
   let key;
   try {
     key = sanitizeKey(params.key ?? "");

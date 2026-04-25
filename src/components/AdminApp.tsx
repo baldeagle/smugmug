@@ -206,6 +206,19 @@ export default function AdminApp() {
 
       <div className="photo-grid-header">
         <h2>{photos.length} photo{photos.length !== 1 ? "s" : ""}</h2>
+        {photos.length > 0 && (
+          <button className="btn-danger" onClick={async () => {
+            if (!confirm(`Delete ALL ${photos.length} photos? This cannot be undone.`)) return;
+            const res = await fetch("/api/delete/__all__", { method: "DELETE" });
+            if (res.ok) {
+              const data = await res.json();
+              showToast(`Deleted ${data.deleted} photo(s)`, "success");
+              checkAuth();
+            } else {
+              showToast("Delete all failed", "error");
+            }
+          }}>Delete All</button>
+        )}
       </div>
 
       {photos.length === 0 ? (
