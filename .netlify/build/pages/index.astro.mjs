@@ -2,10 +2,14 @@ import { c as createComponent, i as renderComponent, r as renderTemplate } from 
 import 'piccolore';
 import { $ as $$BaseLayout } from '../chunks/BaseLayout_BKQeLCa5.mjs';
 import { jsx, jsxs } from 'react/jsx-runtime';
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 /* empty css                                 */
 export { renderers } from '../renderers.mjs';
 
+function getPageSize() {
+  if (typeof window === "undefined") return 20;
+  return window.innerWidth <= 640 ? 5 : 20;
+}
 function GalleryApp() {
   const [photos, setPhotos] = useState([]);
   const [stars, setStars] = useState({});
@@ -16,10 +20,33 @@ function GalleryApp() {
   const [showThumbs, setShowThumbs] = useState(true);
   const [autoPlay, setAutoPlay] = useState(false);
   const [swipeHint, setSwipeHint] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const autoPlayRef = useRef(null);
   const slideRef = useRef(null);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
+  const loadPage = useCallback(async (pageNum) => {
+    setLoading(true);
+    const limit = getPageSize();
+    try {
+      const [photoRes, starRes] = await Promise.all([
+        fetch(`/api/photos?page=${pageNum}&limit=${limit}`),
+        fetch("/api/stars")
+      ]);
+      const photoData = await photoRes.json();
+      const starData = await starRes.json();
+      setPhotos(photoData.photos);
+      setTotalPages(photoData.totalPages);
+      setTotal(photoData.total);
+      setPage(photoData.page);
+      setStars(starData);
+      setCurrent(0);
+    } catch {
+    }
+    setLoading(false);
+  }, []);
   useEffect(() => {
     const stored = localStorage.getItem("myStars");
     if (stored) {
@@ -28,15 +55,8 @@ function GalleryApp() {
       } catch {
       }
     }
-    Promise.all([
-      fetch("/api/photos").then((r) => r.json()),
-      fetch("/api/stars").then((r) => r.json()).catch(() => ({}))
-    ]).then(([photoData, starData]) => {
-      setPhotos(photoData);
-      setStars(starData);
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, []);
+    loadPage(1);
+  }, [loadPage]);
   const goNext = useCallback(() => {
     setCurrent((i) => (i + 1) % photos.length);
   }, [photos.length]);
@@ -72,8 +92,19 @@ function GalleryApp() {
     const dy = e.changedTouches[0].clientY - touchStartY.current;
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
       if (swipeHint) setSwipeHint(false);
-      if (dx < 0) goNext();
-      else goPrev();
+      if (dx < 0) {
+        if (current === photos.length - 1 && page < totalPages) {
+          loadPage(page + 1);
+        } else {
+          goNext();
+        }
+      } else {
+        if (current === 0 && page > 1) {
+          loadPage(page - 1);
+        } else {
+          goPrev();
+        }
+      }
     }
   };
   const toggleStar = async (key) => {
@@ -128,6 +159,7 @@ function GalleryApp() {
     (current + 1) % photos.length,
     (current - 1 + photos.length) % photos.length
   ]);
+  const globalIndex = (page - 1) * photos.length + current + 1;
   return /* @__PURE__ */ jsxs("div", { className: `gallery ${fullscreen ? "fullscreen" : ""}`, ref: slideRef, children: [
     /* @__PURE__ */ jsx("div", { className: "gallery-banner", children: "Star your favorite photos and the most popular ones will be uploaded in full resolution!" }),
     /* @__PURE__ */ jsxs(
@@ -146,14 +178,14 @@ function GalleryApp() {
             },
             photo.key
           ),
-          /* @__PURE__ */ jsx("button", { className: "slide-nav slide-prev", onClick: goPrev, "aria-label": "Previous", children: "‹" }),
-          /* @__PURE__ */ jsx("button", { className: "slide-nav slide-next", onClick: goNext, "aria-label": "Next", children: "›" }),
+          /* @__PURE__ */ jsx("button", { className: "slide-nav slide-prev", onClick: current === 0 && page > 1 ? () => loadPage(page - 1) : goPrev, "aria-label": "Previous", children: "‹" }),
+          /* @__PURE__ */ jsx("button", { className: "slide-nav slide-next", onClick: current === photos.length - 1 && page < totalPages ? () => loadPage(page + 1) : goNext, "aria-label": "Next", children: "›" }),
           swipeHint && photos.length > 1 && /* @__PURE__ */ jsx("div", { className: "swipe-hint", onClick: () => setSwipeHint(false), children: "Swipe or use arrows to navigate" }),
           /* @__PURE__ */ jsxs("div", { className: "slide-controls", children: [
             /* @__PURE__ */ jsxs("span", { className: "slide-counter", children: [
-              current + 1,
+              globalIndex,
               " / ",
-              photos.length
+              total
             ] }),
             /* @__PURE__ */ jsx("span", { className: "slide-filename", children: photo.filename }),
             /* @__PURE__ */ jsxs("div", { className: "slide-actions", children: [
@@ -170,13 +202,39 @@ function GalleryApp() {
                 }
               ),
               /* @__PURE__ */ jsx("button", { className: "btn-ghost btn-icon", onClick: () => setAutoPlay(!autoPlay), title: autoPlay ? "Pause" : "Auto-play", children: autoPlay ? "⏸" : "▶" }),
-              /* @__PURE__ */ jsx("button", { className: "btn-ghost btn-icon", onClick: toggleFullscreen, title: "Fullscreen (F)", children: "\\u26F6" }),
-              /* @__PURE__ */ jsx("button", { className: "btn-ghost btn-icon", onClick: downloadCurrent, title: "Download", children: "\\u2B07" })
+              /* @__PURE__ */ jsx("button", { className: "btn-ghost btn-icon", onClick: toggleFullscreen, title: "Fullscreen (F)", children: "⛶" }),
+              /* @__PURE__ */ jsx("button", { className: "btn-ghost btn-icon", onClick: downloadCurrent, title: "Download", children: "⬇" })
             ] })
           ] })
         ]
       }
     ),
+    /* @__PURE__ */ jsxs("div", { className: "pagination", children: [
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn-ghost",
+          disabled: page <= 1,
+          onClick: () => loadPage(page - 1),
+          children: "‹ Prev"
+        }
+      ),
+      /* @__PURE__ */ jsxs("span", { className: "page-info", children: [
+        "Page ",
+        page,
+        " of ",
+        totalPages
+      ] }),
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn-ghost",
+          disabled: page >= totalPages,
+          onClick: () => loadPage(page + 1),
+          children: "Next ›"
+        }
+      )
+    ] }),
     showThumbs && photos.length > 1 && /* @__PURE__ */ jsx("div", { className: "thumb-strip", children: photos.map((p, i) => /* @__PURE__ */ jsxs(
       "button",
       {

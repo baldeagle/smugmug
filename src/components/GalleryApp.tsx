@@ -8,6 +8,11 @@ interface Photo {
   uploadDate: string;
 }
 
+function getPageSize() {
+  if (typeof window === "undefined") return 20;
+  return window.innerWidth <= 640 ? 5 : 20;
+}
+
 export default function GalleryApp() {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [stars, setStars] = useState<Record<string, number>>({});
@@ -18,26 +23,41 @@ export default function GalleryApp() {
   const [showThumbs, setShowThumbs] = useState(true);
   const [autoPlay, setAutoPlay] = useState(false);
   const [swipeHint, setSwipeHint] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const autoPlayRef = useRef<ReturnType<typeof setTimeout>>(null);
   const slideRef = useRef<HTMLDivElement>(null);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
+
+  const loadPage = useCallback(async (pageNum: number) => {
+    setLoading(true);
+    const limit = getPageSize();
+    try {
+      const [photoRes, starRes] = await Promise.all([
+        fetch(`/api/photos?page=${pageNum}&limit=${limit}`),
+        fetch("/api/stars"),
+      ]);
+      const photoData = await photoRes.json();
+      const starData = await starRes.json();
+      setPhotos(photoData.photos);
+      setTotalPages(photoData.totalPages);
+      setTotal(photoData.total);
+      setPage(photoData.page);
+      setStars(starData);
+      setCurrent(0);
+    } catch {}
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
     const stored = localStorage.getItem("myStars");
     if (stored) {
       try { setMyStars(new Set(JSON.parse(stored))); } catch {}
     }
-
-    Promise.all([
-      fetch("/api/photos").then((r) => r.json()),
-      fetch("/api/stars").then((r) => r.json()).catch(() => ({})),
-    ]).then(([photoData, starData]) => {
-      setPhotos(photoData);
-      setStars(starData);
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, []);
+    loadPage(1);
+  }, [loadPage]);
 
   const goNext = useCallback(() => {
     setCurrent((i) => (i + 1) % photos.length);
@@ -79,8 +99,19 @@ export default function GalleryApp() {
     const dy = e.changedTouches[0].clientY - touchStartY.current;
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
       if (swipeHint) setSwipeHint(false);
-      if (dx < 0) goNext();
-      else goPrev();
+      if (dx < 0) {
+        if (current === photos.length - 1 && page < totalPages) {
+          loadPage(page + 1);
+        } else {
+          goNext();
+        }
+      } else {
+        if (current === 0 && page > 1) {
+          loadPage(page - 1);
+        } else {
+          goPrev();
+        }
+      }
     }
   };
 
@@ -138,6 +169,7 @@ export default function GalleryApp() {
     (current + 1) % photos.length,
     (current - 1 + photos.length) % photos.length,
   ]);
+  const globalIndex = (page - 1) * photos.length + current + 1;
 
   return (
     <div className={`gallery ${fullscreen ? "fullscreen" : ""}`} ref={slideRef}>
@@ -157,10 +189,10 @@ export default function GalleryApp() {
           key={photo.key}
         />
 
-        <button className="slide-nav slide-prev" onClick={goPrev} aria-label="Previous">
+        <button className="slide-nav slide-prev" onClick={current === 0 && page > 1 ? () => loadPage(page - 1) : goPrev} aria-label="Previous">
           &#8249;
         </button>
-        <button className="slide-nav slide-next" onClick={goNext} aria-label="Next">
+        <button className="slide-nav slide-next" onClick={current === photos.length - 1 && page < totalPages ? () => loadPage(page + 1) : goNext} aria-label="Next">
           &#8250;
         </button>
 
@@ -171,7 +203,7 @@ export default function GalleryApp() {
         )}
 
         <div className="slide-controls">
-          <span className="slide-counter">{current + 1} / {photos.length}</span>
+          <span className="slide-counter">{globalIndex} / {total}</span>
           <span className="slide-filename">{photo.filename}</span>
           <div className="slide-actions">
             <button
@@ -186,13 +218,33 @@ export default function GalleryApp() {
               {autoPlay ? "\u23F8" : "\u25B6"}
             </button>
             <button className="btn-ghost btn-icon" onClick={toggleFullscreen} title="Fullscreen (F)">
-              \u26F6
+              {"\u26F6"}
             </button>
             <button className="btn-ghost btn-icon" onClick={downloadCurrent} title="Download">
-              \u2B07
+              {"\u2B07"}
             </button>
           </div>
         </div>
+      </div>
+
+      <div className="pagination">
+        <button
+          className="btn-ghost"
+          disabled={page <= 1}
+          onClick={() => loadPage(page - 1)}
+        >
+          &#8249; Prev
+        </button>
+        <span className="page-info">
+          Page {page} of {totalPages}
+        </span>
+        <button
+          className="btn-ghost"
+          disabled={page >= totalPages}
+          onClick={() => loadPage(page + 1)}
+        >
+          Next &#8250;
+        </button>
       </div>
 
       {showThumbs && photos.length > 1 && (

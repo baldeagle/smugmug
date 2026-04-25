@@ -45,6 +45,25 @@ import GalleryApp from "../components/GalleryApp";
     flex-shrink: 0;
   }
 
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 6px 0;
+    flex-shrink: 0;
+  }
+  .page-info {
+    color: var(--text-muted);
+    font-size: 13px;
+    min-width: 100px;
+    text-align: center;
+  }
+  .pagination button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
   .slide-container {
     position: relative;
     flex: 1;

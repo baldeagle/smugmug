@@ -1,7 +1,10 @@
 import type { APIRoute } from "astro";
 import { getStore } from "@netlify/blobs";
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ url }) => {
+  const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
+  const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 20));
+
   const store = getStore("photos");
   const { blobs } = await store.list();
 
@@ -23,7 +26,13 @@ export const GET: APIRoute = async () => {
 
   photos.sort((a, b) => (a.uploadDate > b.uploadDate ? -1 : 1));
 
-  return new Response(JSON.stringify(photos), {
-    headers: { "Content-Type": "application/json" },
-  });
+  const total = photos.length;
+  const totalPages = Math.ceil(total / limit);
+  const start = (page - 1) * limit;
+  const pagePhotos = photos.slice(start, start + limit);
+
+  return new Response(
+    JSON.stringify({ photos: pagePhotos, page, totalPages, total }),
+    { headers: { "Content-Type": "application/json" } }
+  );
 };
