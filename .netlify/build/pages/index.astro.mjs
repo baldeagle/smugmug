@@ -8,6 +8,8 @@ export { renderers } from '../renderers.mjs';
 
 function GalleryApp() {
   const [photos, setPhotos] = useState([]);
+  const [stars, setStars] = useState({});
+  const [myStars, setMyStars] = useState(/* @__PURE__ */ new Set());
   const [current, setCurrent] = useState(0);
   const [loading, setLoading] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
@@ -19,8 +21,19 @@ function GalleryApp() {
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   useEffect(() => {
-    fetch("/api/photos").then((r) => r.json()).then((data) => {
-      setPhotos(data);
+    const stored = localStorage.getItem("myStars");
+    if (stored) {
+      try {
+        setMyStars(new Set(JSON.parse(stored)));
+      } catch {
+      }
+    }
+    Promise.all([
+      fetch("/api/photos").then((r) => r.json()),
+      fetch("/api/stars").then((r) => r.json()).catch(() => ({}))
+    ]).then(([photoData, starData]) => {
+      setPhotos(photoData);
+      setStars(starData);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -63,6 +76,23 @@ function GalleryApp() {
       else goPrev();
     }
   };
+  const toggleStar = async (key) => {
+    const isStarred = myStars.has(key);
+    const method = isStarred ? "DELETE" : "POST";
+    try {
+      const res = await fetch(`/api/star/${encodeURIComponent(key)}`, { method });
+      if (res.ok) {
+        const data = await res.json();
+        setStars((prev) => ({ ...prev, [key]: data.stars }));
+        const next = new Set(myStars);
+        if (isStarred) next.delete(key);
+        else next.add(key);
+        setMyStars(next);
+        localStorage.setItem("myStars", JSON.stringify([...next]));
+      }
+    } catch {
+    }
+  };
   const downloadCurrent = () => {
     if (photos.length === 0) return;
     const photo2 = photos[current];
@@ -99,6 +129,7 @@ function GalleryApp() {
     (current - 1 + photos.length) % photos.length
   ]);
   return /* @__PURE__ */ jsxs("div", { className: `gallery ${fullscreen ? "fullscreen" : ""}`, ref: slideRef, children: [
+    /* @__PURE__ */ jsx("div", { className: "gallery-banner", children: "Star your favorite photos and the most popular ones will be uploaded in full resolution!" }),
     /* @__PURE__ */ jsxs(
       "div",
       {
@@ -126,6 +157,18 @@ function GalleryApp() {
             ] }),
             /* @__PURE__ */ jsx("span", { className: "slide-filename", children: photo.filename }),
             /* @__PURE__ */ jsxs("div", { className: "slide-actions", children: [
+              /* @__PURE__ */ jsxs(
+                "button",
+                {
+                  className: `btn-icon btn-star ${myStars.has(photo.key) ? "starred" : ""}`,
+                  onClick: () => toggleStar(photo.key),
+                  title: "Star this photo",
+                  children: [
+                    myStars.has(photo.key) ? "★" : "☆",
+                    stars[photo.key] ? /* @__PURE__ */ jsx("span", { className: "star-count", children: stars[photo.key] }) : null
+                  ]
+                }
+              ),
               /* @__PURE__ */ jsx("button", { className: "btn-ghost btn-icon", onClick: () => setAutoPlay(!autoPlay), title: autoPlay ? "Pause" : "Auto-play", children: autoPlay ? "⏸" : "▶" }),
               /* @__PURE__ */ jsx("button", { className: "btn-ghost btn-icon", onClick: toggleFullscreen, title: "Fullscreen (F)", children: "\\u26F6" }),
               /* @__PURE__ */ jsx("button", { className: "btn-ghost btn-icon", onClick: downloadCurrent, title: "Download", children: "\\u2B07" })
@@ -134,12 +177,15 @@ function GalleryApp() {
         ]
       }
     ),
-    showThumbs && photos.length > 1 && /* @__PURE__ */ jsx("div", { className: "thumb-strip", children: photos.map((p, i) => /* @__PURE__ */ jsx(
+    showThumbs && photos.length > 1 && /* @__PURE__ */ jsx("div", { className: "thumb-strip", children: photos.map((p, i) => /* @__PURE__ */ jsxs(
       "button",
       {
         className: `thumb ${i === current ? "active" : ""}`,
         onClick: () => setCurrent(i),
-        children: preload.has(i) ? /* @__PURE__ */ jsx("img", { src: `/api/photo/${encodeURIComponent(p.key)}`, alt: p.filename, loading: "lazy" }) : /* @__PURE__ */ jsx("img", { "data-src": `/api/photo/${encodeURIComponent(p.key)}`, alt: p.filename, loading: "lazy" })
+        children: [
+          preload.has(i) ? /* @__PURE__ */ jsx("img", { src: `/api/photo/${encodeURIComponent(p.key)}`, alt: p.filename, loading: "lazy" }) : /* @__PURE__ */ jsx("img", { "data-src": `/api/photo/${encodeURIComponent(p.key)}`, alt: p.filename, loading: "lazy" }),
+          stars[p.key] ? /* @__PURE__ */ jsx("span", { className: "thumb-star", children: stars[p.key] }) : null
+        ]
       },
       p.key
     )) })

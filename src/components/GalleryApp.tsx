@@ -10,6 +10,8 @@ interface Photo {
 
 export default function GalleryApp() {
   const [photos, setPhotos] = useState<Photo[]>([]);
+  const [stars, setStars] = useState<Record<string, number>>({});
+  const [myStars, setMyStars] = useState<Set<string>>(new Set());
   const [current, setCurrent] = useState(0);
   const [loading, setLoading] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
@@ -22,13 +24,19 @@ export default function GalleryApp() {
   const touchStartY = useRef(0);
 
   useEffect(() => {
-    fetch("/api/photos")
-      .then((r) => r.json())
-      .then((data) => {
-        setPhotos(data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    const stored = localStorage.getItem("myStars");
+    if (stored) {
+      try { setMyStars(new Set(JSON.parse(stored))); } catch {}
+    }
+
+    Promise.all([
+      fetch("/api/photos").then((r) => r.json()),
+      fetch("/api/stars").then((r) => r.json()).catch(() => ({})),
+    ]).then(([photoData, starData]) => {
+      setPhotos(photoData);
+      setStars(starData);
+      setLoading(false);
+    }).catch(() => setLoading(false));
   }, []);
 
   const goNext = useCallback(() => {
@@ -76,6 +84,23 @@ export default function GalleryApp() {
     }
   };
 
+  const toggleStar = async (key: string) => {
+    const isStarred = myStars.has(key);
+    const method = isStarred ? "DELETE" : "POST";
+    try {
+      const res = await fetch(`/api/star/${encodeURIComponent(key)}`, { method });
+      if (res.ok) {
+        const data = await res.json();
+        setStars((prev) => ({ ...prev, [key]: data.stars }));
+        const next = new Set(myStars);
+        if (isStarred) next.delete(key);
+        else next.add(key);
+        setMyStars(next);
+        localStorage.setItem("myStars", JSON.stringify([...next]));
+      }
+    } catch {}
+  };
+
   const downloadCurrent = () => {
     if (photos.length === 0) return;
     const photo = photos[current];
@@ -116,6 +141,10 @@ export default function GalleryApp() {
 
   return (
     <div className={`gallery ${fullscreen ? "fullscreen" : ""}`} ref={slideRef}>
+      <div className="gallery-banner">
+        Star your favorite photos and the most popular ones will be uploaded in full resolution!
+      </div>
+
       <div
         className="slide-container"
         onTouchStart={handleTouchStart}
@@ -145,6 +174,14 @@ export default function GalleryApp() {
           <span className="slide-counter">{current + 1} / {photos.length}</span>
           <span className="slide-filename">{photo.filename}</span>
           <div className="slide-actions">
+            <button
+              className={`btn-icon btn-star ${myStars.has(photo.key) ? "starred" : ""}`}
+              onClick={() => toggleStar(photo.key)}
+              title="Star this photo"
+            >
+              {myStars.has(photo.key) ? "\u2605" : "\u2606"}
+              {stars[photo.key] ? <span className="star-count">{stars[photo.key]}</span> : null}
+            </button>
             <button className="btn-ghost btn-icon" onClick={() => setAutoPlay(!autoPlay)} title={autoPlay ? "Pause" : "Auto-play"}>
               {autoPlay ? "\u23F8" : "\u25B6"}
             </button>
@@ -171,6 +208,7 @@ export default function GalleryApp() {
               ) : (
                 <img data-src={`/api/photo/${encodeURIComponent(p.key)}`} alt={p.filename} loading="lazy" />
               )}
+              {stars[p.key] ? <span className="thumb-star">{stars[p.key]}</span> : null}
             </button>
           ))}
         </div>

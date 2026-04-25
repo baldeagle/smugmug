@@ -50,6 +50,7 @@ export default function AdminApp() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [password, setPassword] = useState("");
   const [photos, setPhotos] = useState<any[]>([]);
+  const [starCounts, setStarCounts] = useState<Record<string, number>>({});
   const [uploading, setUploading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -62,10 +63,16 @@ export default function AdminApp() {
 
   const checkAuth = useCallback(async () => {
     try {
-      const res = await fetch("/api/photos");
-      if (res.ok) {
-        const data = await res.json();
+      const [photoRes, starRes] = await Promise.all([
+        fetch("/api/photos"),
+        fetch("/api/stars"),
+      ]);
+      if (photoRes.ok) {
+        const data = await photoRes.json();
         setPhotos(data);
+      }
+      if (starRes.ok) {
+        setStarCounts(await starRes.json());
       }
     } catch {}
   }, []);
@@ -234,7 +241,10 @@ export default function AdminApp() {
               </div>
               <div className="admin-photo-info">
                 <span className="photo-name" title={photo.filename}>{photo.filename}</span>
-                <span className="photo-meta">{formatSize(photo.size)}</span>
+                <span className="photo-meta">
+                  {formatSize(photo.size)}
+                  {starCounts[photo.key] ? ` · ${starCounts[photo.key]} stars` : ""}
+                </span>
               </div>
               <button className="btn-danger btn-sm" onClick={() => deletePhoto(photo.key)}>
                 Delete

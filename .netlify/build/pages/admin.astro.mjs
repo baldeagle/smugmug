@@ -56,6 +56,7 @@ function AdminApp() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [password, setPassword] = useState("");
   const [photos, setPhotos] = useState([]);
+  const [starCounts, setStarCounts] = useState({});
   const [uploading, setUploading] = useState(false);
   const [toast, setToast] = useState(null);
   const [dragOver, setDragOver] = useState(false);
@@ -66,10 +67,16 @@ function AdminApp() {
   };
   const checkAuth = useCallback(async () => {
     try {
-      const res = await fetch("/api/photos");
-      if (res.ok) {
-        const data = await res.json();
+      const [photoRes, starRes] = await Promise.all([
+        fetch("/api/photos"),
+        fetch("/api/stars")
+      ]);
+      if (photoRes.ok) {
+        const data = await photoRes.json();
         setPhotos(data);
+      }
+      if (starRes.ok) {
+        setStarCounts(await starRes.json());
       }
     } catch {
     }
@@ -221,7 +228,10 @@ function AdminApp() {
       /* @__PURE__ */ jsx("div", { className: "admin-photo-thumb", children: /* @__PURE__ */ jsx("img", { src: `/api/photo/${encodeURIComponent(photo.key)}`, alt: photo.filename, loading: "lazy" }) }),
       /* @__PURE__ */ jsxs("div", { className: "admin-photo-info", children: [
         /* @__PURE__ */ jsx("span", { className: "photo-name", title: photo.filename, children: photo.filename }),
-        /* @__PURE__ */ jsx("span", { className: "photo-meta", children: formatSize(photo.size) })
+        /* @__PURE__ */ jsxs("span", { className: "photo-meta", children: [
+          formatSize(photo.size),
+          starCounts[photo.key] ? ` · ${starCounts[photo.key]} stars` : ""
+        ] })
       ] }),
       /* @__PURE__ */ jsx("button", { className: "btn-danger btn-sm", onClick: () => deletePhoto(photo.key), children: "Delete" })
     ] }, photo.key)) }),
