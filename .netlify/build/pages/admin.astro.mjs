@@ -1,6 +1,6 @@
 import { c as createComponent, i as renderComponent, r as renderTemplate } from '../chunks/astro/server_DtASbT4X.mjs';
 import 'piccolore';
-import { $ as $$BaseLayout } from '../chunks/BaseLayout_DTKES44d.mjs';
+import { $ as $$BaseLayout } from '../chunks/BaseLayout_BKQeLCa5.mjs';
 import { jsxs, jsx, Fragment } from 'react/jsx-runtime';
 import { useState, useRef, useCallback, useEffect } from 'react';
 /* empty css                                 */
@@ -168,10 +168,10 @@ function AdminApp() {
 }
 
 const $$Admin = createComponent(($$result, $$props, $$slots) => {
-  return renderTemplate`${renderComponent($$result, "BaseLayout", $$BaseLayout, { "title": "Admin", "description": "Photo gallery admin" }, { "default": ($$result2) => renderTemplate` ${renderComponent($$result2, "AdminApp", AdminApp, { "client:load": true, "client:component-hydration": "load", "client:component-path": "C:/Users/andyb/Documents/GitHub/smugmug/src/components/AdminApp", "client:component-export": "default" })} ` })} `;
-}, "C:/Users/andyb/Documents/GitHub/smugmug/src/pages/admin.astro", void 0);
+  return renderTemplate`${renderComponent($$result, "BaseLayout", $$BaseLayout, { "title": "Admin", "description": "Photo gallery admin" }, { "default": ($$result2) => renderTemplate` ${renderComponent($$result2, "AdminApp", AdminApp, { "client:load": true, "client:component-hydration": "load", "client:component-path": "C:/Users/andyb/Documents/GitHub/smugmug2/src/components/AdminApp", "client:component-export": "default" })} ` })} `;
+}, "C:/Users/andyb/Documents/GitHub/smugmug2/src/pages/admin.astro", void 0);
 
-const $$file = "C:/Users/andyb/Documents/GitHub/smugmug/src/pages/admin.astro";
+const $$file = "C:/Users/andyb/Documents/GitHub/smugmug2/src/pages/admin.astro";
 const $$url = "/admin";
 
 const _page = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({

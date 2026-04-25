@@ -1,8 +1,14 @@
 import { getStore } from '@netlify/blobs';
+import { s as sanitizeKey, b as sanitizeFilename } from '../../../chunks/auth_w0Z0MlMs.mjs';
 export { renderers } from '../../../renderers.mjs';
 
 const GET = async ({ params, url }) => {
-  const key = params.key;
+  let key;
+  try {
+    key = sanitizeKey(params.key ?? "");
+  } catch {
+    return new Response("Invalid key", { status: 400 });
+  }
   if (!key) {
     return new Response("Not found", { status: 404 });
   }
@@ -13,10 +19,11 @@ const GET = async ({ params, url }) => {
   }
   const meta = await store.getMetadata(key);
   const contentType = meta?.contentType || "image/jpeg";
-  const filename = meta?.filename || key;
+  const filename = sanitizeFilename(meta?.filename || key);
   const headers = {
     "Content-Type": contentType,
-    "Cache-Control": "public, max-age=31536000, immutable"
+    "Cache-Control": "public, max-age=31536000, immutable",
+    "X-Content-Type-Options": "nosniff"
   };
   if (url.searchParams.has("download")) {
     headers["Content-Disposition"] = `attachment; filename="${filename}"`;

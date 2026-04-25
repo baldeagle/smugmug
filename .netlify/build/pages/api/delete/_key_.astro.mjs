@@ -1,12 +1,17 @@
 import { getStore } from '@netlify/blobs';
-import { i as isAuthenticated } from '../../../chunks/auth_CABgming.mjs';
+import { i as isAuthenticated, s as sanitizeKey } from '../../../chunks/auth_w0Z0MlMs.mjs';
 export { renderers } from '../../../renderers.mjs';
 
 const DELETE = async ({ params, cookies }) => {
   if (!await isAuthenticated(cookies)) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
   }
-  const key = params.key;
+  let key;
+  try {
+    key = sanitizeKey(params.key ?? "");
+  } catch {
+    return new Response(JSON.stringify({ error: "Invalid key" }), { status: 400 });
+  }
   if (!key) {
     return new Response(JSON.stringify({ error: "Missing key" }), { status: 400 });
   }

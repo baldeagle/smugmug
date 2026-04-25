@@ -1415,7 +1415,7 @@ const $$Image = createComponent(async ($$result, $$props, $$slots) => {
   }
   const { class: className, ...attributes } = { ...additionalAttributes, ...image.attributes };
   return renderTemplate`${maybeRenderHead()}<img${addAttribute(image.src, "src")}${spreadAttributes(attributes)}${addAttribute(className, "class")}>`;
-}, "C:/Users/andyb/Documents/GitHub/smugmug/node_modules/astro/components/Image.astro", void 0);
+}, "C:/Users/andyb/Documents/GitHub/smugmug2/node_modules/astro/components/Image.astro", void 0);
 
 const $$Astro$1 = createAstro();
 const $$Picture = createComponent(async ($$result, $$props, $$slots) => {
@@ -1486,7 +1486,7 @@ const $$Picture = createComponent(async ($$result, $$props, $$slots) => {
     const srcsetAttribute = props.densities || !props.densities && !props.widths && !useResponsive ? `${image.src}${image.srcSet.values.length > 0 ? ", " + image.srcSet.attribute : ""}` : image.srcSet.attribute;
     return renderTemplate`<source${addAttribute(srcsetAttribute, "srcset")}${addAttribute(mime.lookup(image.options.format ?? image.src) ?? `image/${image.options.format}`, "type")}${spreadAttributes(sourceAdditionalAttributes)}>`;
   })}  <img${addAttribute(fallbackImage.src, "src")}${spreadAttributes(attributes)}${addAttribute(className, "class")}> </picture>`;
-}, "C:/Users/andyb/Documents/GitHub/smugmug/node_modules/astro/components/Picture.astro", void 0);
+}, "C:/Users/andyb/Documents/GitHub/smugmug2/node_modules/astro/components/Picture.astro", void 0);
 
 const mod = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null
@@ -1545,7 +1545,7 @@ const $$Font = createComponent(($$result, $$props, $$slots) => {
   }
   const filteredPreloadData = filterPreloads(data.preloads, preload);
   return renderTemplate`<style>${unescapeHTML(data.css)}</style>${filteredPreloadData?.map(({ url, type }) => renderTemplate`<link rel="preload"${addAttribute(url, "href")} as="font"${addAttribute(`font/${type}`, "type")} crossorigin>`)}`;
-}, "C:/Users/andyb/Documents/GitHub/smugmug/node_modules/astro/components/Font.astro", void 0);
+}, "C:/Users/andyb/Documents/GitHub/smugmug2/node_modules/astro/components/Font.astro", void 0);
 
 const assetQueryParams = undefined;
 							const imageConfig = {"endpoint":{"route":"/_image"},"service":{"entrypoint":"@astrojs/netlify/image-service.js","config":{}},"domains":[],"remotePatterns":[],"responsiveStyles":false};

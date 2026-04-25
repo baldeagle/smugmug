@@ -1,19 +1,83 @@
-import { c as checkPassword, a as createToken } from '../../chunks/auth_CABgming.mjs';
+import { getStore } from '@netlify/blobs';
+import { c as checkPassword, a as createToken } from '../../chunks/auth_w0Z0MlMs.mjs';
 export { renderers } from '../../renderers.mjs';
 
+const MAX_ATTEMPTS = 5;
+const WINDOW_MS = 15 * 60 * 1e3;
+function getClientIP(request) {
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) return forwarded.split(",")[0].trim();
+  return request.headers.get("x-real-ip") || "unknown";
+}
+async function getRateLimit(ip) {
+  const store = getStore("rate-limit");
+  try {
+    const raw = await store.get(ip, { type: "text" });
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+async function setRateLimit(ip, entry) {
+  const store = getStore("rate-limit");
+  await store.set(ip, JSON.stringify(entry), {
+    metadata: { ttl: String(WINDOW_MS) }
+  });
+}
+async function clearRateLimit(ip) {
+  const store = getStore("rate-limit");
+  try {
+    await store.delete(ip);
+  } catch {
+  }
+}
 const POST = async ({ request }) => {
+  const ip = getClientIP(request);
+  const rateLimit = await getRateLimit(ip);
+  if (rateLimit) {
+    const elapsed = Date.now() - rateLimit.firstAttempt;
+    if (elapsed < WINDOW_MS && rateLimit.count >= MAX_ATTEMPTS) {
+      const retryAfter = Math.ceil((WINDOW_MS - elapsed) / 1e3);
+      return new Response(
+        JSON.stringify({
+          error: "Too many login attempts. Try again later.",
+          retryAfter
+        }),
+        {
+          status: 429,
+          headers: {
+            "Content-Type": "application/json",
+            "Retry-After": String(retryAfter)
+          }
+        }
+      );
+    }
+    if (elapsed >= WINDOW_MS) {
+      await clearRateLimit(ip);
+    }
+  }
   let body;
   try {
     body = await request.json();
   } catch {
-    return new Response(JSON.stringify({ error: "Invalid request" }), { status: 400 });
+    return new Response(JSON.stringify({ error: "Invalid request" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" }
+    });
   }
   if (!body.password || !checkPassword(body.password)) {
+    const current = rateLimit && Date.now() - rateLimit.firstAttempt < WINDOW_MS ? rateLimit : null;
+    await setRateLimit(ip, {
+      count: (current?.count || 0) + 1,
+      firstAttempt: current?.firstAttempt || Date.now()
+    });
     return new Response(JSON.stringify({ error: "Invalid password" }), {
       status: 401,
       headers: { "Content-Type": "application/json" }
     });
   }
+  await clearRateLimit(ip);
   const token = await createToken();
   return new Response(JSON.stringify({ success: true }), {
     headers: {
