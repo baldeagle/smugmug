@@ -3,9 +3,9 @@
   "type": "module",
   "version": "1.0.0",
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
-    "preview": "astro preview"
+    "dev": "npx astro dev",
+    "build": "npx astro build",
+    "preview": "npx astro preview"
   },
   "dependencies": {
     "@astrojs/netlify": "^6.2.3",
