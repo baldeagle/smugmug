@@ -2,6 +2,13 @@ import type { APIRoute } from "astro";
 import { getStore } from "@netlify/blobs";
 import { checkPassword, createToken } from "../../lib/auth";
 
+export const GET: APIRoute = async () => {
+  const hasPassword = !!(process.env.ADMIN_PASSWORD || import.meta.env.ADMIN_PASSWORD);
+  return new Response(JSON.stringify({ envLoaded: hasPassword }), {
+    headers: { "Content-Type": "application/json" },
+  });
+};
+
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 15 * 60 * 1000;
 
