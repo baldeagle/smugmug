@@ -4,13 +4,23 @@ export { renderers } from '../../renderers.mjs';
 const GET = async () => {
   const store = getStore("photos");
   const { blobs } = await store.list();
-  const photos = blobs.filter((b) => b.metadata?.filename).map((b) => ({
-    key: b.key,
-    filename: b.metadata.filename,
-    contentType: b.metadata.contentType,
-    size: Number(b.metadata.size),
-    uploadDate: b.metadata.uploadDate
-  })).sort((a, b) => a.uploadDate > b.uploadDate ? -1 : 1);
+  const photos = await Promise.all(
+    blobs.map(async (b) => {
+      let meta = {};
+      try {
+        meta = await store.getMetadata(b.key);
+      } catch {
+      }
+      return {
+        key: b.key,
+        filename: meta?.filename || b.key,
+        contentType: meta?.contentType || "image/jpeg",
+        size: Number(meta?.size || 0),
+        uploadDate: meta?.uploadDate || ""
+      };
+    })
+  );
+  photos.sort((a, b) => a.uploadDate > b.uploadDate ? -1 : 1);
   return new Response(JSON.stringify(photos), {
     headers: { "Content-Type": "application/json" }
   });
