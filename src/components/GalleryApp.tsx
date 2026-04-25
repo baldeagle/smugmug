@@ -15,8 +15,11 @@ export default function GalleryApp() {
   const [fullscreen, setFullscreen] = useState(false);
   const [showThumbs, setShowThumbs] = useState(true);
   const [autoPlay, setAutoPlay] = useState(false);
+  const [swipeHint, setSwipeHint] = useState(true);
   const autoPlayRef = useRef<ReturnType<typeof setTimeout>>(null);
   const slideRef = useRef<HTMLDivElement>(null);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
 
   useEffect(() => {
     fetch("/api/photos")
@@ -58,6 +61,21 @@ export default function GalleryApp() {
     return () => window.removeEventListener("keydown", handler);
   }, [goNext, goPrev]);
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = e.changedTouches[0].clientY - touchStartY.current;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+      if (swipeHint) setSwipeHint(false);
+      if (dx < 0) goNext();
+      else goPrev();
+    }
+  };
+
   const downloadCurrent = () => {
     if (photos.length === 0) return;
     const photo = photos[current];
@@ -90,10 +108,19 @@ export default function GalleryApp() {
   }
 
   const photo = photos[current];
+  const preload = new Set([
+    current,
+    (current + 1) % photos.length,
+    (current - 1 + photos.length) % photos.length,
+  ]);
 
   return (
     <div className={`gallery ${fullscreen ? "fullscreen" : ""}`} ref={slideRef}>
-      <div className="slide-container">
+      <div
+        className="slide-container"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         <img
           src={`/api/photo/${encodeURIComponent(photo.key)}`}
           alt={photo.filename}
@@ -102,24 +129,30 @@ export default function GalleryApp() {
         />
 
         <button className="slide-nav slide-prev" onClick={goPrev} aria-label="Previous">
-          ‹
+          &#8249;
         </button>
         <button className="slide-nav slide-next" onClick={goNext} aria-label="Next">
-          ›
+          &#8250;
         </button>
+
+        {swipeHint && photos.length > 1 && (
+          <div className="swipe-hint" onClick={() => setSwipeHint(false)}>
+            Swipe or use arrows to navigate
+          </div>
+        )}
 
         <div className="slide-controls">
           <span className="slide-counter">{current + 1} / {photos.length}</span>
           <span className="slide-filename">{photo.filename}</span>
           <div className="slide-actions">
             <button className="btn-ghost btn-icon" onClick={() => setAutoPlay(!autoPlay)} title={autoPlay ? "Pause" : "Auto-play"}>
-              {autoPlay ? "⏸" : "▶"}
+              {autoPlay ? "\u23F8" : "\u25B6"}
             </button>
             <button className="btn-ghost btn-icon" onClick={toggleFullscreen} title="Fullscreen (F)">
-              ⛶
+              \u26F6
             </button>
             <button className="btn-ghost btn-icon" onClick={downloadCurrent} title="Download">
-              ⬇
+              \u2B07
             </button>
           </div>
         </div>
@@ -133,7 +166,11 @@ export default function GalleryApp() {
               className={`thumb ${i === current ? "active" : ""}`}
               onClick={() => setCurrent(i)}
             >
-              <img src={`/api/photo/${encodeURIComponent(p.key)}`} alt={p.filename} loading="lazy" />
+              {preload.has(i) ? (
+                <img src={`/api/photo/${encodeURIComponent(p.key)}`} alt={p.filename} loading="lazy" />
+              ) : (
+                <img data-src={`/api/photo/${encodeURIComponent(p.key)}`} alt={p.filename} loading="lazy" />
+              )}
             </button>
           ))}
         </div>

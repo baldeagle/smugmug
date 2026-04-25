@@ -86,6 +86,19 @@ import AdminApp from "../components/AdminApp";
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 12px;
   }
+
+  @media (max-width: 640px) {
+    .login-card {
+      margin: 0 16px;
+      padding: 24px;
+    }
+    .upload-zone {
+      padding: 24px;
+    }
+    .admin-grid {
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    }
+  }
   .admin-photo-card {
     background: var(--bg-card);
     border: 1px solid var(--border);

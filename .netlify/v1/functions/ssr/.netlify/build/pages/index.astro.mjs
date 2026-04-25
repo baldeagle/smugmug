@@ -13,8 +13,11 @@ function GalleryApp() {
   const [fullscreen, setFullscreen] = useState(false);
   const [showThumbs, setShowThumbs] = useState(true);
   const [autoPlay, setAutoPlay] = useState(false);
+  const [swipeHint, setSwipeHint] = useState(true);
   const autoPlayRef = useRef(null);
   const slideRef = useRef(null);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
   useEffect(() => {
     fetch("/api/photos").then((r) => r.json()).then((data) => {
       setPhotos(data);
@@ -47,6 +50,19 @@ function GalleryApp() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [goNext, goPrev]);
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+  const handleTouchEnd = (e) => {
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = e.changedTouches[0].clientY - touchStartY.current;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+      if (swipeHint) setSwipeHint(false);
+      if (dx < 0) goNext();
+      else goPrev();
+    }
+  };
   const downloadCurrent = () => {
     if (photos.length === 0) return;
     const photo2 = photos[current];
@@ -77,39 +93,53 @@ function GalleryApp() {
     ] });
   }
   const photo = photos[current];
+  const preload = /* @__PURE__ */ new Set([
+    current,
+    (current + 1) % photos.length,
+    (current - 1 + photos.length) % photos.length
+  ]);
   return /* @__PURE__ */ jsxs("div", { className: `gallery ${fullscreen ? "fullscreen" : ""}`, ref: slideRef, children: [
-    /* @__PURE__ */ jsxs("div", { className: "slide-container", children: [
-      /* @__PURE__ */ jsx(
-        "img",
-        {
-          src: `/api/photo/${encodeURIComponent(photo.key)}`,
-          alt: photo.filename,
-          className: "slide-image"
-        },
-        photo.key
-      ),
-      /* @__PURE__ */ jsx("button", { className: "slide-nav slide-prev", onClick: goPrev, "aria-label": "Previous", children: "‹" }),
-      /* @__PURE__ */ jsx("button", { className: "slide-nav slide-next", onClick: goNext, "aria-label": "Next", children: "›" }),
-      /* @__PURE__ */ jsxs("div", { className: "slide-controls", children: [
-        /* @__PURE__ */ jsxs("span", { className: "slide-counter", children: [
-          current + 1,
-          " / ",
-          photos.length
-        ] }),
-        /* @__PURE__ */ jsx("span", { className: "slide-filename", children: photo.filename }),
-        /* @__PURE__ */ jsxs("div", { className: "slide-actions", children: [
-          /* @__PURE__ */ jsx("button", { className: "btn-ghost btn-icon", onClick: () => setAutoPlay(!autoPlay), title: autoPlay ? "Pause" : "Auto-play", children: autoPlay ? "⏸" : "▶" }),
-          /* @__PURE__ */ jsx("button", { className: "btn-ghost btn-icon", onClick: toggleFullscreen, title: "Fullscreen (F)", children: "⛶" }),
-          /* @__PURE__ */ jsx("button", { className: "btn-ghost btn-icon", onClick: downloadCurrent, title: "Download", children: "⬇" })
-        ] })
-      ] })
-    ] }),
+    /* @__PURE__ */ jsxs(
+      "div",
+      {
+        className: "slide-container",
+        onTouchStart: handleTouchStart,
+        onTouchEnd: handleTouchEnd,
+        children: [
+          /* @__PURE__ */ jsx(
+            "img",
+            {
+              src: `/api/photo/${encodeURIComponent(photo.key)}`,
+              alt: photo.filename,
+              className: "slide-image"
+            },
+            photo.key
+          ),
+          /* @__PURE__ */ jsx("button", { className: "slide-nav slide-prev", onClick: goPrev, "aria-label": "Previous", children: "‹" }),
+          /* @__PURE__ */ jsx("button", { className: "slide-nav slide-next", onClick: goNext, "aria-label": "Next", children: "›" }),
+          swipeHint && photos.length > 1 && /* @__PURE__ */ jsx("div", { className: "swipe-hint", onClick: () => setSwipeHint(false), children: "Swipe or use arrows to navigate" }),
+          /* @__PURE__ */ jsxs("div", { className: "slide-controls", children: [
+            /* @__PURE__ */ jsxs("span", { className: "slide-counter", children: [
+              current + 1,
+              " / ",
+              photos.length
+            ] }),
+            /* @__PURE__ */ jsx("span", { className: "slide-filename", children: photo.filename }),
+            /* @__PURE__ */ jsxs("div", { className: "slide-actions", children: [
+              /* @__PURE__ */ jsx("button", { className: "btn-ghost btn-icon", onClick: () => setAutoPlay(!autoPlay), title: autoPlay ? "Pause" : "Auto-play", children: autoPlay ? "⏸" : "▶" }),
+              /* @__PURE__ */ jsx("button", { className: "btn-ghost btn-icon", onClick: toggleFullscreen, title: "Fullscreen (F)", children: "\\u26F6" }),
+              /* @__PURE__ */ jsx("button", { className: "btn-ghost btn-icon", onClick: downloadCurrent, title: "Download", children: "\\u2B07" })
+            ] })
+          ] })
+        ]
+      }
+    ),
     showThumbs && photos.length > 1 && /* @__PURE__ */ jsx("div", { className: "thumb-strip", children: photos.map((p, i) => /* @__PURE__ */ jsx(
       "button",
       {
         className: `thumb ${i === current ? "active" : ""}`,
         onClick: () => setCurrent(i),
-        children: /* @__PURE__ */ jsx("img", { src: `/api/photo/${encodeURIComponent(p.key)}`, alt: p.filename, loading: "lazy" })
+        children: preload.has(i) ? /* @__PURE__ */ jsx("img", { src: `/api/photo/${encodeURIComponent(p.key)}`, alt: p.filename, loading: "lazy" }) : /* @__PURE__ */ jsx("img", { "data-src": `/api/photo/${encodeURIComponent(p.key)}`, alt: p.filename, loading: "lazy" })
       },
       p.key
     )) })
