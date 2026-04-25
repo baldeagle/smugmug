@@ -1,5 +1,5 @@
-const ADMIN_PASSWORD = import.meta.env.ADMIN_PASSWORD;
-const AUTH_SECRET = import.meta.env.AUTH_SECRET;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || import.meta.env.ADMIN_PASSWORD;
+const AUTH_SECRET = process.env.AUTH_SECRET || import.meta.env.AUTH_SECRET;
 
 if (!ADMIN_PASSWORD) {
   throw new Error(

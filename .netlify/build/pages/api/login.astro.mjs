@@ -1,5 +1,5 @@
 import { getStore } from '@netlify/blobs';
-import { c as checkPassword, a as createToken } from '../../chunks/auth_w0Z0MlMs.mjs';
+import { c as checkPassword, a as createToken } from '../../chunks/auth_VDEDaLTA.mjs';
 export { renderers } from '../../renderers.mjs';
 
 const MAX_ATTEMPTS = 5;
