@@ -1,6 +1,6 @@
 import { getStore } from '@netlify/blobs';
 import { s as sanitizeKey, b as sanitizeFilename } from '../../../chunks/auth_VDEDaLTA.mjs';
-import { a as checkReferer, R as ROBOTS_HEADERS } from '../../../chunks/rate-limit_DIt3Mpea.mjs';
+import { a as checkReferer, R as ROBOTS_HEADERS } from '../../../chunks/rate-limit_UX2O11Lm.mjs';
 export { renderers } from '../../../renderers.mjs';
 
 const GET = async ({ params, url, request }) => {
