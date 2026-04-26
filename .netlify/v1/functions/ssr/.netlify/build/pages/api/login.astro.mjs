@@ -1,6 +1,6 @@
 import { getStore } from '@netlify/blobs';
 import { c as checkPassword, a as createToken } from '../../chunks/auth_VDEDaLTA.mjs';
-import { g as getClientIP } from '../../chunks/rate-limit_Blp4ECmH.mjs';
+import { g as getClientIP } from '../../chunks/rate-limit_CT6SyZ0q.mjs';
 export { renderers } from '../../renderers.mjs';
 
 const MAX_ATTEMPTS = 5;

@@ -1,13 +1,9 @@
 import { getStore } from '@netlify/blobs';
 import { s as sanitizeKey, b as sanitizeFilename } from '../../../chunks/auth_VDEDaLTA.mjs';
-import { g as getClientIP, c as checkRateLimit, R as ROBOTS_HEADERS, a as checkReferer } from '../../../chunks/rate-limit_Blp4ECmH.mjs';
+import { a as checkReferer, R as ROBOTS_HEADERS } from '../../../chunks/rate-limit_CT6SyZ0q.mjs';
 export { renderers } from '../../../renderers.mjs';
 
-const GET = async ({ params, url, request, clientAddress }) => {
-  const ip = clientAddress || getClientIP(request);
-  if (!await checkRateLimit(ip, "photo", 60, 6e4)) {
-    return new Response("Rate limited", { status: 429, headers: ROBOTS_HEADERS });
-  }
+const GET = async ({ params, url, request }) => {
   if (!checkReferer(request)) {
     return new Response("Forbidden", { status: 403, headers: ROBOTS_HEADERS });
   }

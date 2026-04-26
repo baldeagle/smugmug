@@ -34,7 +34,9 @@ export async function checkRateLimit(
     }
   } catch {}
 
-  await s.set(key, JSON.stringify({ count: 1, start: Date.now() }));
+  try {
+    await s.set(key, JSON.stringify({ count: 1, start: Date.now() }));
+  } catch {}
   return true;
 }
 

@@ -1,14 +1,9 @@
 import type { APIRoute } from "astro";
 import { getStore } from "@netlify/blobs";
 import { sanitizeKey } from "../../../lib/auth";
-import { getClientIP, checkRateLimit, checkReferer, ROBOTS_HEADERS } from "../../../lib/rate-limit";
+import { checkReferer, ROBOTS_HEADERS } from "../../../lib/rate-limit";
 
-export const GET: APIRoute = async ({ params, request, clientAddress }) => {
-  const ip = clientAddress || getClientIP(request);
-  if (!await checkRateLimit(ip, "thumb", 60, 60000)) {
-    return new Response("Rate limited", { status: 429, headers: ROBOTS_HEADERS });
-  }
-
+export const GET: APIRoute = async ({ params, request }) => {
   if (!checkReferer(request)) {
     return new Response("Forbidden", { status: 403, headers: ROBOTS_HEADERS });
   }

@@ -1,8 +1,10 @@
 import { getStore } from "@netlify/blobs";
 import exifr from "exifr";
+import { writeFileSync, readFileSync, existsSync, unlinkSync } from "node:fs";
 
-const BATCH_SIZE = 5;
-const BATCH_DELAY_MS = 500;
+const DELAY_MS = 500;
+const BATCH_DELAY_MS = 1500;
+const PROGRESS_FILE = "scripts/.backfill-progress.json";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -32,108 +34,118 @@ async function main() {
   const siteID = process.env.NETLIFY_SITE_ID;
 
   if (!token || !siteID) {
-    console.error("Error: NETLIFY_BLOBS_SECRET and NETLIFY_SITE_ID environment variables are required.");
+    console.error("Error: NETLIFY_BLOBS_SECRET and NETLIFY_SITE_ID required.");
     process.exit(1);
   }
 
   const store = getStore({ name: "photos", siteID, token });
   const { blobs } = await store.list();
-  console.log(`Found ${blobs.length} photos. Checking metadata...`);
+  const photoBlobs = blobs.filter((b) => !b.key.startsWith("__"));
+  console.log(`Found ${photoBlobs.length} photos. Checking metadata...\n`);
 
-  const keysNeedingExif = [];
-  for (const blob of blobs) {
-    try {
-      const meta = await store.getMetadata(blob.key);
-      if (!meta?.exifDate) {
-        keysNeedingExif.push(blob.key);
+  let completed = {};
+  if (existsSync(PROGRESS_FILE)) {
+    completed = JSON.parse(readFileSync(PROGRESS_FILE, "utf-8"));
+    console.log(`Resuming: ${Object.keys(completed).length} already processed.\n`);
+  }
+
+  let needsExif = [];
+  let alreadyHasExif = 0;
+
+  for (const blob of photoBlobs) {
+    if (completed[blob.key] === "has-exif" || completed[blob.key] === "no-exif") {
+      if (completed[blob.key] === "has-exif") alreadyHasExif++;
+      continue;
+    }
+    if (completed[blob.key] === "skip") continue;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const meta = await store.getMetadata(blob.key);
+        if (meta?.exifDate) {
+          completed[blob.key] = "has-exif";
+          alreadyHasExif++;
+          needsExif = undefined;
+          break;
+        } else {
+          needsExif.push(blob.key);
+          completed[blob.key] = "needs-exif";
+          break;
+        }
+      } catch {
+        if (attempt < 2) {
+          await sleep(5000 * (attempt + 1));
+        } else {
+          needsExif.push(blob.key);
+          completed[blob.key] = "needs-exif";
+        }
       }
-    } catch {
-      keysNeedingExif.push(blob.key);
     }
   }
 
-  if (keysNeedingExif.length === 0) {
-    console.log("All photos already have EXIF dates. Nothing to do.");
+  needsExif = photoBlobs.filter((b) => completed[b.key] === "needs-exif");
+  console.log(`${alreadyHasExif} already have EXIF, ${needsExif.length} need extraction.\n`);
+
+  if (needsExif.length === 0) {
+    console.log("All photos have EXIF dates. Nothing to do.");
+    if (existsSync(PROGRESS_FILE)) try { unlinkSync(PROGRESS_FILE); } catch {}
     return;
   }
 
-  console.log(`${keysNeedingExif.length} photos need EXIF date backfill.\n`);
-
   let updated = 0;
-  let skipped = 0;
+  let noExif = 0;
   let failed = 0;
 
-  for (let i = 0; i < keysNeedingExif.length; i += BATCH_SIZE) {
-    const batch = keysNeedingExif.slice(i, i + BATCH_SIZE);
-    const results = await Promise.allSettled(
-      batch.map(async (key) => {
-        const data = await store.get(key, { type: "arrayBuffer" });
-        if (!data) throw new Error("No data");
-        const exifDate = await getExifDateFromBuffer(data);
-        const existingMeta = await store.getMetadata(key).catch(() => ({}));
-        await store.set(key, data, {
-          metadata: {
-            ...existingMeta,
-            exifDate: exifDate || "",
-          },
-        });
-        return { key, exifDate };
-      })
-    );
+  for (let i = 0; i < needsExif.length; i++) {
+    const key = needsExif[i];
 
-    for (const result of results) {
-      if (result.status === "fulfilled") {
-        if (result.value.exifDate) {
-          updated++;
-        } else {
-          skipped++;
-        }
+    try {
+      const data = await store.get(key, { type: "arrayBuffer" });
+      if (!data) throw new Error("No data");
+
+      const exifDate = await getExifDateFromBuffer(data);
+
+      let existingMeta = {};
+      try { existingMeta = await store.getMetadata(key) || {}; } catch {}
+
+      await store.set(key, data, {
+        metadata: { ...existingMeta, exifDate: exifDate || "" },
+      });
+
+      if (exifDate) {
+        updated++;
+        completed[key] = "has-exif";
       } else {
-        failed++;
-        console.error(`  Failed: ${result.reason}`);
+        noExif++;
+        completed[key] = "no-exif";
       }
+    } catch (err) {
+      failed++;
+      console.error(`\n  Failed ${key.slice(-30)}: ${err.message || err}`);
     }
 
-    const progress = Math.min(i + BATCH_SIZE, keysNeedingExif.length);
+    const progress = i + 1;
     process.stdout.write(
-      `\r  [${progress}/${keysNeedingExif.length}] ${updated} updated, ${skipped} no EXIF, ${failed} failed   `
+      `\r  [${progress}/${needsExif.length}] ${updated} updated, ${noExif} no EXIF, ${failed} failed   `
     );
 
-    if (i + BATCH_SIZE < keysNeedingExif.length) {
-      await sleep(BATCH_DELAY_MS);
+    if (progress % 20 === 0) {
+      writeFileSync(PROGRESS_FILE, JSON.stringify(completed));
     }
+
+    if (i < needsExif.length - 1) await sleep(DELAY_MS);
   }
 
-  console.log(`\n\nDone! ${updated} photos updated with EXIF dates, ${skipped} had no EXIF data, ${failed} failed.`);
+  writeFileSync(PROGRESS_FILE, JSON.stringify(completed));
+
+  console.log(`\n\nDone! ${updated} updated, ${noExif} no EXIF data, ${failed} failed.`);
 
   if (updated > 0) {
-    console.log("\nRebuilding order cache...");
-    const allBlobs = await store.list();
-    const entries = [];
-    for (let i = 0; i < allBlobs.blobs.length; i += 10) {
-      const batch = allBlobs.blobs.slice(i, i + 10);
-      const results = await Promise.all(
-        batch.map(async (blob) => {
-          try {
-            const meta = await store.getMetadata(blob.key);
-            return { key: blob.key, exifDate: meta?.exifDate || "" };
-          } catch {
-            return { key: blob.key, exifDate: "" };
-          }
-        })
-      );
-      entries.push(...results);
-    }
-    entries.sort((a, b) => {
-      if (a.exifDate && b.exifDate) return a.exifDate.localeCompare(b.exifDate);
-      if (a.exifDate) return -1;
-      if (b.exifDate) return 1;
-      return a.key.localeCompare(b.key);
-    });
-    await store.set("__order__", JSON.stringify(entries.map((e) => e.key)), {
-      metadata: { updatedAt: new Date().toISOString(), count: String(entries.length) },
-    });
-    console.log(`Order cache rebuilt (${entries.length} photos).`);
+    console.log("\nRun rebuild-order.mjs to update the gallery sort order.");
+  }
+
+  if (failed === 0 && existsSync(PROGRESS_FILE)) {
+    try { unlinkSync(PROGRESS_FILE); } catch {}
   }
 }
 

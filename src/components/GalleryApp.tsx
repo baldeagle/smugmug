@@ -111,7 +111,7 @@ export default function GalleryApp({ initialPhotoKey, mode = "gallery" }: Props)
         if (duration >= 2) {
           navigator.sendBeacon?.(
             "/api/metrics",
-            JSON.stringify({ key: prevKeyRef.current, duration: Math.round(duration * 100) / 100 })
+            new Blob([JSON.stringify({ key: prevKeyRef.current, duration: Math.round(duration * 100) / 100 })], { type: "application/json" })
           );
         }
       }

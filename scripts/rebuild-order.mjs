@@ -1,68 +1,43 @@
 import { getStore } from "@netlify/blobs";
 import { writeFileSync, readFileSync, existsSync } from "node:fs";
 
-const BATCH_SIZE = 10;
-const BATCH_DELAY_MS = 300;
-const MAX_RETRIES = 4;
-const COOLDOWN_MS = 10000;
+const DELAY_MS = 400;
+const MAX_RETRIES = 5;
+const BACKOFF = [2000, 5000, 15000, 30000, 60000];
 const CACHE_FILE = "scripts/.order-cache.json";
+const PROGRESS_FILE = "scripts/.order-progress.json";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchMetadata(store, photoBlobs) {
-  const entries = [];
-  let errors = 0;
-
-  for (let i = 0; i < photoBlobs.length; i += BATCH_SIZE) {
-    const batch = photoBlobs.slice(i, i + BATCH_SIZE);
-    const results = await Promise.allSettled(
-      batch.map(async (blob) => {
-        const meta = await store.getMetadata(blob.key);
-        return { key: blob.key, exifDate: meta?.exifDate || "" };
-      })
-    );
-    for (let j = 0; j < results.length; j++) {
-      const result = results[j];
-      if (result.status === "fulfilled") {
-        entries.push(result.value);
-      } else {
-        entries.push({ key: batch[j].key, exifDate: "" });
-        errors++;
+async function getMetadataWithRetry(store, key) {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const meta = await store.getMetadata(key);
+      return { key, exifDate: meta?.exifDate || "" };
+    } catch (err) {
+      if (attempt < MAX_RETRIES) {
+        const delay = BACKOFF[Math.min(attempt, BACKOFF.length - 1)];
+        process.stdout.write(`\n  Retry ${attempt + 1}/${MAX_RETRIES} for ${key.slice(-30)} (${delay}ms)...`);
+        await sleep(delay);
       }
     }
-    const progress = Math.min(i + BATCH_SIZE, photoBlobs.length);
-    process.stdout.write(`\r  Fetched metadata: ${progress}/${photoBlobs.length} (${errors} errors)   `);
-    if (i + BATCH_SIZE < photoBlobs.length) await sleep(BATCH_DELAY_MS);
   }
-
-  return entries;
-}
-
-function sortEntries(entries) {
-  entries.sort((a, b) => {
-    if (a.exifDate && b.exifDate) return a.exifDate.localeCompare(b.exifDate);
-    if (a.exifDate) return -1;
-    if (b.exifDate) return 1;
-    return a.key.localeCompare(b.key);
-  });
-  return entries.map((e) => e.key);
+  return { key, exifDate: "" };
 }
 
 async function writeCache(store, sortedKeys) {
-  const data = JSON.stringify(sortedKeys);
-
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+  for (let attempt = 1; attempt <= 5; attempt++) {
     try {
-      await store.set("__order__", data, {
+      await store.set("__order__", JSON.stringify(sortedKeys), {
         metadata: { updatedAt: new Date().toISOString(), count: String(sortedKeys.length) },
       });
       return true;
     } catch (err) {
-      console.log(`\n  Write attempt ${attempt}/${MAX_RETRIES} failed: ${err.message || err}`);
-      if (attempt < MAX_RETRIES) {
-        const delay = 10000 * attempt;
+      console.log(`\n  Write attempt ${attempt}/5 failed: ${err.message || err}`);
+      if (attempt < 5) {
+        const delay = 15000 * attempt;
         console.log(`  Retrying in ${delay / 1000}s...`);
         await sleep(delay);
       }
@@ -76,61 +51,99 @@ async function main() {
   const siteID = process.env.NETLIFY_SITE_ID;
 
   if (!token || !siteID) {
-    console.error("Error: NETLIFY_BLOBS_SECRET and NETLIFY_SITE_ID environment variables are required.");
+    console.error("Error: NETLIFY_BLOBS_SECRET and NETLIFY_SITE_ID required.");
     process.exit(1);
   }
 
   const store = getStore({ name: "photos", siteID, token });
 
-  if (existsSync(CACHE_FILE)) {
-    console.log(`Found local cache file (${CACHE_FILE}). Skipping metadata fetch.`);
-    console.log("Delete the cache file to re-fetch metadata.\n");
+  if (existsSync(CACHE_FILE) && !existsSync(PROGRESS_FILE)) {
+    console.log(`Found completed cache (${CACHE_FILE}). Use --force to re-fetch.`);
     const sortedKeys = JSON.parse(readFileSync(CACHE_FILE, "utf-8"));
-    console.log(`Loaded ${sortedKeys.length} keys from cache.`);
-
-    console.log(`Cooling down ${COOLDOWN_MS / 1000}s before write...`);
-    await sleep(COOLDOWN_MS);
-
-    console.log("Writing __order__ cache...");
+    console.log(`Loaded ${sortedKeys.length} keys. Writing to store...`);
+    await sleep(10000);
     const ok = await writeCache(store, sortedKeys);
-    if (ok) {
-      console.log("Done! Order cache updated.");
-    } else {
-      writeFileSync(CACHE_FILE, JSON.stringify(sortedKeys));
-      console.error(`Failed to write cache. Sorted keys saved to ${CACHE_FILE}.`);
-      console.error("Wait a few minutes and re-run to retry the write.");
+    if (ok) console.log("Done! Order cache updated.");
+    else {
+      console.error("Write failed. Re-run to retry.");
       process.exit(1);
     }
     return;
   }
 
+  let existingEntries = {};
+  let keysToFetch = [];
   const { blobs } = await store.list();
   const photoBlobs = blobs.filter((b) => !b.key.startsWith("__"));
-  console.log(`Found ${blobs.length} blobs (${photoBlobs.length} photos, ${blobs.length - photoBlobs.length} system keys). Fetching metadata...`);
+  console.log(`Found ${photoBlobs.length} photos.`);
 
-  const entries = await fetchMetadata(store, photoBlobs);
+  if (existsSync(PROGRESS_FILE)) {
+    existingEntries = JSON.parse(readFileSync(PROGRESS_FILE, "utf-8"));
+    const fetched = Object.keys(existingEntries).length;
+    console.log(`Resuming from progress file (${fetched} already fetched).`);
+    keysToFetch = photoBlobs.map((b) => b.key).filter((k) => !(k in existingEntries));
+    console.log(`${keysToFetch.length} remaining.`);
+  } else {
+    keysToFetch = photoBlobs.map((b) => b.key);
+  }
 
-  console.log("\n\nSorting by EXIF date...");
-  const sortedKeys = sortEntries(entries);
-  const withExif = entries.filter((e) => e.exifDate).length;
-  const withoutExif = entries.length - withExif;
+  if (keysToFetch.length > 0) {
+    console.log(`Fetching metadata sequentially (${DELAY_MS}ms delay, ${MAX_RETRIES} retries)...\n`);
+    let batchSave = 0;
 
-  console.log(`Sorted ${sortedKeys.length} keys (${withExif} with EXIF, ${withoutExif} without).`);
+    for (let i = 0; i < keysToFetch.length; i++) {
+      const key = keysToFetch[i];
+      const result = await getMetadataWithRetry(store, key);
+      existingEntries[result.key] = result.exifDate;
 
+      batchSave++;
+      if (batchSave >= 50 || i === keysToFetch.length - 1) {
+        writeFileSync(PROGRESS_FILE, JSON.stringify(existingEntries));
+        batchSave = 0;
+      }
+
+      const progress = Object.keys(existingEntries).length;
+      const withExif = Object.values(existingEntries).filter((v) => v).length;
+      process.stdout.write(`\r  ${progress}/${photoBlobs.length} fetched (${withExif} with EXIF, ${progress - withExif} without)   `);
+
+      if (i < keysToFetch.length - 1) await sleep(DELAY_MS);
+    }
+  }
+
+  const allEntries = photoBlobs.map((b) => ({
+    key: b.key,
+    exifDate: existingEntries[b.key] || "",
+  }));
+
+  console.log("\n\nSorting...");
+  const withExif = allEntries.filter((e) => e.exifDate).length;
+  const without = allEntries.length - withExif;
+  console.log(`${withExif} with EXIF dates, ${without} without.`);
+
+  allEntries.sort((a, b) => {
+    if (a.exifDate && b.exifDate) return a.exifDate.localeCompare(b.exifDate);
+    if (a.exifDate) return -1;
+    if (b.exifDate) return 1;
+    return a.key.localeCompare(b.key);
+  });
+
+  const sortedKeys = allEntries.map((e) => e.key);
   writeFileSync(CACHE_FILE, JSON.stringify(sortedKeys));
-  console.log(`Saved sorted keys to ${CACHE_FILE} (backup).`);
+  console.log(`Saved ${sortedKeys.length} keys to ${CACHE_FILE}.`);
 
-  console.log(`Cooling down ${COOLDOWN_MS / 1000}s before write...`);
-  await sleep(COOLDOWN_MS);
+  console.log("Cooling down 10s before write...");
+  await sleep(10000);
 
   console.log("Writing __order__ cache...");
   const ok = await writeCache(store, sortedKeys);
   if (ok) {
     console.log("Done! Order cache updated.");
+    if (existsSync(PROGRESS_FILE)) {
+      const { unlinkSync } = await import("node:fs");
+      try { unlinkSync(PROGRESS_FILE); } catch {}
+    }
   } else {
-    console.error(`\nFailed to write cache after ${MAX_RETRIES} attempts.`);
-    console.error(`Sorted keys are saved in ${CACHE_FILE}.`);
-    console.error("Wait a few minutes and re-run to retry the write (metadata fetch will be skipped).");
+    console.error(`\nWrite failed. Progress saved in ${PROGRESS_FILE}. Re-run to retry.`);
     process.exit(1);
   }
 }
