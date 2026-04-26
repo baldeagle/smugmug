@@ -6,9 +6,15 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 /* empty css                                 */
 export { renderers } from '../renderers.mjs';
 
+function isMobile() {
+  if (typeof window === "undefined") return false;
+  return window.innerWidth <= 640;
+}
 function getPageSize() {
-  if (typeof window === "undefined") return 20;
-  return window.innerWidth <= 640 ? 5 : 20;
+  return isMobile() ? 5 : 20;
+}
+function getMaxPhotos() {
+  return isMobile() ? 50 : 150;
 }
 function thumbUrl(filename) {
   const thumbName = filename.replace("_sized", "_thumb");
@@ -27,6 +33,7 @@ function GalleryApp() {
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [fetchingMore, setFetchingMore] = useState(false);
+  const [globalOffset, setGlobalOffset] = useState(0);
   const nextPageRef = useRef(2);
   const autoPlayRef = useRef(null);
   const slideRef = useRef(null);
@@ -44,6 +51,15 @@ function GalleryApp() {
   useEffect(() => {
     fetchingMoreRef.current = fetchingMore;
   }, [fetchingMore]);
+  const trimPhotos = useCallback((currentIdx) => {
+    const max = getMaxPhotos();
+    if (photosRef.current.length <= max) return;
+    const keepFrom = Math.max(0, currentIdx - 10);
+    if (keepFrom === 0) return;
+    setGlobalOffset((prev) => prev + keepFrom);
+    setPhotos(photosRef.current.slice(keepFrom));
+    setCurrent(currentIdx - keepFrom);
+  }, []);
   const fetchMore = useCallback(async () => {
     if (fetchingMoreRef.current || !hasMoreRef.current) return;
     setFetchingMore(true);
@@ -63,7 +79,8 @@ function GalleryApp() {
         setPhotos((prev) => {
           const existing = new Set(prev.map((p) => p.key));
           const deduped = newPhotos.filter((p) => !existing.has(p.key));
-          return [...prev, ...deduped];
+          const merged = [...prev, ...deduped];
+          return merged;
         });
       }
       nextPageRef.current = page + 1;
@@ -72,6 +89,7 @@ function GalleryApp() {
     } catch {
     }
     setFetchingMore(false);
+    trimPhotos(photosRef.current.length > 0 ? photosRef.current.length - 1 : 0);
   }, []);
   useEffect(() => {
     const loadInitial = async () => {
@@ -238,7 +256,7 @@ function GalleryApp() {
           swipeHint && photos.length > 1 && /* @__PURE__ */ jsx("div", { className: "swipe-hint", onClick: () => setSwipeHint(false), children: "Swipe or use arrows to navigate" }),
           /* @__PURE__ */ jsxs("div", { className: "slide-controls", children: [
             /* @__PURE__ */ jsxs("span", { className: "slide-counter", children: [
-              current + 1,
+              globalOffset + current + 1,
               " / ",
               total
             ] }),

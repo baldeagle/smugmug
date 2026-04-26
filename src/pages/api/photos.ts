@@ -14,7 +14,7 @@ export const GET: APIRoute = async ({ url }) => {
   const store = getStore("photos");
   const { blobs } = await store.list();
 
-  const allKeys = blobs.map((b) => b.key).sort().reverse();
+  const allKeys = blobs.map((b) => b.key).sort();
   const total = allKeys.length;
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const start = (page - 1) * limit;

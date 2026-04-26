@@ -11,7 +11,7 @@ const GET = async ({ url }) => {
   const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 20));
   const store = getStore("photos");
   const { blobs } = await store.list();
-  const allKeys = blobs.map((b) => b.key).sort().reverse();
+  const allKeys = blobs.map((b) => b.key).sort();
   const total = allKeys.length;
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const start = (page - 1) * limit;

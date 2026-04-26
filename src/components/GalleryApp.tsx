@@ -5,9 +5,17 @@ interface Photo {
   filename: string;
 }
 
+function isMobile() {
+  if (typeof window === "undefined") return false;
+  return window.innerWidth <= 640;
+}
+
 function getPageSize() {
-  if (typeof window === "undefined") return 20;
-  return window.innerWidth <= 640 ? 5 : 20;
+  return isMobile() ? 5 : 20;
+}
+
+function getMaxPhotos() {
+  return isMobile() ? 50 : 150;
 }
 
 function thumbUrl(filename: string): string {
@@ -28,6 +36,7 @@ export default function GalleryApp() {
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [fetchingMore, setFetchingMore] = useState(false);
+  const [globalOffset, setGlobalOffset] = useState(0);
   const nextPageRef = useRef(2);
   const autoPlayRef = useRef<ReturnType<typeof setTimeout>>(null);
   const slideRef = useRef<HTMLDivElement>(null);
@@ -40,6 +49,16 @@ export default function GalleryApp() {
   useEffect(() => { photosRef.current = photos; }, [photos]);
   useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
   useEffect(() => { fetchingMoreRef.current = fetchingMore; }, [fetchingMore]);
+
+  const trimPhotos = useCallback((currentIdx: number) => {
+    const max = getMaxPhotos();
+    if (photosRef.current.length <= max) return;
+    const keepFrom = Math.max(0, currentIdx - 10);
+    if (keepFrom === 0) return;
+    setGlobalOffset((prev) => prev + keepFrom);
+    setPhotos(photosRef.current.slice(keepFrom));
+    setCurrent(currentIdx - keepFrom);
+  }, []);
 
   const fetchMore = useCallback(async () => {
     if (fetchingMoreRef.current || !hasMoreRef.current) return;
@@ -60,7 +79,8 @@ export default function GalleryApp() {
         setPhotos((prev) => {
           const existing = new Set(prev.map((p) => p.key));
           const deduped = newPhotos.filter((p: Photo) => !existing.has(p.key));
-          return [...prev, ...deduped];
+          const merged = [...prev, ...deduped];
+          return merged;
         });
       }
       nextPageRef.current = page + 1;
@@ -68,6 +88,7 @@ export default function GalleryApp() {
       setHasMore(page < totalPages);
     } catch {}
     setFetchingMore(false);
+    trimPhotos(photosRef.current.length > 0 ? photosRef.current.length - 1 : 0);
   }, []);
 
   useEffect(() => {
@@ -259,7 +280,7 @@ export default function GalleryApp() {
         )}
 
         <div className="slide-controls">
-          <span className="slide-counter">{current + 1} / {total}</span>
+          <span className="slide-counter">{globalOffset + current + 1} / {total}</span>
           <span className="slide-filename">{photo.filename}</span>
           <div className="slide-actions">
             <button
