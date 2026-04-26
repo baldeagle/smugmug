@@ -4,8 +4,10 @@ const MAX_UPLOAD_MB = 5;
 const MAX_DIMENSION = 4000;
 
 function thumbUrl(filename: string): string {
-  const thumbName = filename.replace("_sized", "_thumb");
-  return `/api/thumb/${encodeURIComponent(thumbName)}`;
+  const dotIdx = filename.lastIndexOf(".");
+  const base = dotIdx > 0 ? filename.slice(0, dotIdx) : filename;
+  const ext = dotIdx > 0 ? filename.slice(dotIdx) : "";
+  return `/api/thumb/${encodeURIComponent(base + "_thumb" + ext)}`;
 }
 
 function resizeFile(file: File): Promise<File> {

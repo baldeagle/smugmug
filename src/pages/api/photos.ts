@@ -7,18 +7,29 @@ function filenameFromKey(key: string): string {
   return key;
 }
 
-async function getMetadataBatch(store: ReturnType<typeof getStore>, keys: string[]) {
-  const results = await Promise.all(
-    keys.map(async (key) => {
+async function buildOrderCache(store: ReturnType<typeof getStore>): Promise<string[]> {
+  const { blobs } = await store.list();
+  const entries = await Promise.all(
+    blobs.map(async (blob) => {
       try {
-        const meta = await store.getMetadata(key);
-        return { key, exifDate: meta?.exifDate || "" };
+        const meta = await store.getMetadata(blob.key);
+        return { key: blob.key, exifDate: meta?.exifDate || "" };
       } catch {
-        return { key, exifDate: "" };
+        return { key: blob.key, exifDate: "" };
       }
     })
   );
-  return results;
+  entries.sort((a, b) => {
+    if (a.exifDate && b.exifDate) return a.exifDate.localeCompare(b.exifDate);
+    if (a.exifDate) return -1;
+    if (b.exifDate) return 1;
+    return a.key.localeCompare(b.key);
+  });
+  const sortedKeys = entries.map((e) => e.key);
+  await store.set("__order__", JSON.stringify(sortedKeys), {
+    metadata: { updatedAt: new Date().toISOString(), count: String(sortedKeys.length) },
+  });
+  return sortedKeys;
 }
 
 export const GET: APIRoute = async ({ url }) => {
@@ -26,26 +37,23 @@ export const GET: APIRoute = async ({ url }) => {
   const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 20));
 
   const store = getStore("photos");
-  const { blobs } = await store.list();
 
-  const allKeys = blobs.map((b) => b.key);
-  const metaBatch = await getMetadataBatch(store, allKeys);
+  let allKeys: string[];
+  const cached = await store.get("__order__", { type: "text" });
+  if (cached) {
+    allKeys = JSON.parse(cached);
+  } else {
+    allKeys = await buildOrderCache(store);
+  }
 
-  const sorted = metaBatch.sort((a, b) => {
-    if (a.exifDate && b.exifDate) return a.exifDate.localeCompare(b.exifDate);
-    if (a.exifDate) return -1;
-    if (b.exifDate) return 1;
-    return a.key.localeCompare(b.key);
-  });
-
-  const total = sorted.length;
+  const total = allKeys.length;
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const start = (page - 1) * limit;
-  const pageKeys = sorted.slice(start, start + limit);
+  const pageKeys = allKeys.slice(start, start + limit);
 
-  const photos = pageKeys.map((entry) => ({
-    key: entry.key,
-    filename: filenameFromKey(entry.key),
+  const photos = pageKeys.map((key) => ({
+    key,
+    filename: filenameFromKey(key),
   }));
 
   return new Response(

@@ -17,8 +17,10 @@ function getMaxPhotos() {
   return isMobile() ? 50 : 150;
 }
 function thumbUrl(filename) {
-  const thumbName = filename.replace("_sized", "_thumb");
-  return `/api/thumb/${encodeURIComponent(thumbName)}`;
+  const dotIdx = filename.lastIndexOf(".");
+  const base = dotIdx > 0 ? filename.slice(0, dotIdx) : filename;
+  const ext = dotIdx > 0 ? filename.slice(dotIdx) : "";
+  return `/api/thumb/${encodeURIComponent(base + "_thumb" + ext)}`;
 }
 function GalleryApp() {
   const [photos, setPhotos] = useState([]);

@@ -105,6 +105,36 @@ async function main() {
   }
 
   console.log(`\n\nDone! ${updated} photos updated with EXIF dates, ${skipped} had no EXIF data, ${failed} failed.`);
+
+  if (updated > 0) {
+    console.log("\nRebuilding order cache...");
+    const allBlobs = await store.list();
+    const entries = [];
+    for (let i = 0; i < allBlobs.blobs.length; i += 10) {
+      const batch = allBlobs.blobs.slice(i, i + 10);
+      const results = await Promise.all(
+        batch.map(async (blob) => {
+          try {
+            const meta = await store.getMetadata(blob.key);
+            return { key: blob.key, exifDate: meta?.exifDate || "" };
+          } catch {
+            return { key: blob.key, exifDate: "" };
+          }
+        })
+      );
+      entries.push(...results);
+    }
+    entries.sort((a, b) => {
+      if (a.exifDate && b.exifDate) return a.exifDate.localeCompare(b.exifDate);
+      if (a.exifDate) return -1;
+      if (b.exifDate) return 1;
+      return a.key.localeCompare(b.key);
+    });
+    await store.set("__order__", JSON.stringify(entries.map((e) => e.key)), {
+      metadata: { updatedAt: new Date().toISOString(), count: String(entries.length) },
+    });
+    console.log(`Order cache rebuilt (${entries.length} photos).`);
+  }
 }
 
 main().catch((err) => {

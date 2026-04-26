@@ -19,8 +19,10 @@ function getMaxPhotos() {
 }
 
 function thumbUrl(filename: string): string {
-  const thumbName = filename.replace("_sized", "_thumb");
-  return `/api/thumb/${encodeURIComponent(thumbName)}`;
+  const dotIdx = filename.lastIndexOf(".");
+  const base = dotIdx > 0 ? filename.slice(0, dotIdx) : filename;
+  const ext = dotIdx > 0 ? filename.slice(dotIdx) : "";
+  return `/api/thumb/${encodeURIComponent(base + "_thumb" + ext)}`;
 }
 
 export default function GalleryApp() {

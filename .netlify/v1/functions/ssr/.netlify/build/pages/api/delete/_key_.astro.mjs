@@ -25,6 +25,16 @@ const DELETE = async ({ params, cookies }) => {
   }
   const store = getStore("photos");
   await store.delete(key);
+  const cached = await store.get("__order__", { type: "text" });
+  if (cached) {
+    const order = JSON.parse(cached);
+    const filtered = order.filter((k) => k !== key);
+    if (filtered.length !== order.length) {
+      await store.set("__order__", JSON.stringify(filtered), {
+        metadata: { updatedAt: (/* @__PURE__ */ new Date()).toISOString(), count: String(filtered.length) }
+      });
+    }
+  }
   return new Response(JSON.stringify({ success: true }), {
     headers: { "Content-Type": "application/json" }
   });
