@@ -13,6 +13,9 @@ const { title, description = "Photo gallery" } = Astro.props;
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
+    <meta name="robots" content="noindex, nofollow, noai, noimageai" />
+    <meta name="CCBot" content="nofollow" />
+    <meta name="Googlebot-Image" content="noindex" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="stylesheet" href="/global.css" />
     <title>{title}</title>

@@ -1,4 +1,5 @@
 import { getStore } from '@netlify/blobs';
+import { g as getClientIP, c as checkRateLimit, R as ROBOTS_HEADERS } from '../../chunks/rate-limit_Blp4ECmH.mjs';
 export { renderers } from '../../renderers.mjs';
 
 function filenameFromKey(key) {
@@ -30,7 +31,11 @@ async function buildOrderCache(store) {
   });
   return sortedKeys;
 }
-const GET = async ({ url }) => {
+const GET = async ({ url, request, clientAddress }) => {
+  const ip = clientAddress || getClientIP(request);
+  if (!await checkRateLimit(ip, "photos", 60, 6e4)) {
+    return new Response(JSON.stringify({ error: "Rate limited" }), { status: 429, headers: { "Content-Type": "application/json", ...ROBOTS_HEADERS } });
+  }
   const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
   const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 20));
   const store = getStore("photos");
@@ -51,7 +56,7 @@ const GET = async ({ url }) => {
   }));
   return new Response(
     JSON.stringify({ photos, page, totalPages, total }),
-    { headers: { "Content-Type": "application/json" } }
+    { headers: { "Content-Type": "application/json", ...ROBOTS_HEADERS } }
   );
 };
 

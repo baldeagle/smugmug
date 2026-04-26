@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { getStore } from "@netlify/blobs";
+import { getClientIP, checkRateLimit, ROBOTS_HEADERS } from "../../lib/rate-limit";
 
 function filenameFromKey(key: string): string {
   const parts = key.split("-");
@@ -32,7 +33,12 @@ async function buildOrderCache(store: ReturnType<typeof getStore>): Promise<stri
   return sortedKeys;
 }
 
-export const GET: APIRoute = async ({ url }) => {
+export const GET: APIRoute = async ({ url, request, clientAddress }) => {
+  const ip = clientAddress || getClientIP(request);
+  if (!await checkRateLimit(ip, "photos", 60, 60000)) {
+    return new Response(JSON.stringify({ error: "Rate limited" }), { status: 429, headers: { "Content-Type": "application/json", ...ROBOTS_HEADERS } });
+  }
+
   const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
   const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 20));
 
@@ -58,6 +64,6 @@ export const GET: APIRoute = async ({ url }) => {
 
   return new Response(
     JSON.stringify({ photos, page, totalPages, total }),
-    { headers: { "Content-Type": "application/json" } }
+    { headers: { "Content-Type": "application/json", ...ROBOTS_HEADERS } }
   );
 };

@@ -1,8 +1,16 @@
 import { getStore } from '@netlify/blobs';
-import { s as sanitizeKey, b as sanitizeFilename } from '../../../chunks/auth_ClMjI-0V.mjs';
+import { s as sanitizeKey, b as sanitizeFilename } from '../../../chunks/auth_VDEDaLTA.mjs';
+import { g as getClientIP, c as checkRateLimit, R as ROBOTS_HEADERS, a as checkReferer } from '../../../chunks/rate-limit_Blp4ECmH.mjs';
 export { renderers } from '../../../renderers.mjs';
 
-const GET = async ({ params, url }) => {
+const GET = async ({ params, url, request, clientAddress }) => {
+  const ip = clientAddress || getClientIP(request);
+  if (!await checkRateLimit(ip, "photo", 60, 6e4)) {
+    return new Response("Rate limited", { status: 429, headers: ROBOTS_HEADERS });
+  }
+  if (!checkReferer(request)) {
+    return new Response("Forbidden", { status: 403, headers: ROBOTS_HEADERS });
+  }
   let key;
   try {
     key = sanitizeKey(params.key ?? "");
@@ -15,7 +23,7 @@ const GET = async ({ params, url }) => {
   const store = getStore("photos");
   const blob = await store.get(key, { type: "arrayBuffer" });
   if (!blob) {
-    return new Response("Not found", { status: 404 });
+    return new Response("Not found", { status: 404, headers: ROBOTS_HEADERS });
   }
   const meta = await store.getMetadata(key);
   const contentType = meta?.contentType || "image/jpeg";
@@ -23,7 +31,8 @@ const GET = async ({ params, url }) => {
   const headers = {
     "Content-Type": contentType,
     "Cache-Control": "public, max-age=31536000, immutable",
-    "X-Content-Type-Options": "nosniff"
+    "X-Content-Type-Options": "nosniff",
+    ...ROBOTS_HEADERS
   };
   if (url.searchParams.has("download")) {
     headers["Content-Disposition"] = `attachment; filename="${filename}"`;

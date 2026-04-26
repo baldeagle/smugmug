@@ -1,6 +1,6 @@
 import { c as createComponent, i as renderComponent, r as renderTemplate } from '../chunks/astro/server_DtASbT4X.mjs';
 import 'piccolore';
-import { $ as $$BaseLayout } from '../chunks/BaseLayout_RTpsfP6N.mjs';
+import { $ as $$BaseLayout } from '../chunks/BaseLayout_BEWLDVHA.mjs';
 import { jsxs, jsx, Fragment } from 'react/jsx-runtime';
 import { useState, useRef, useCallback, useEffect } from 'react';
 /* empty css                                 */

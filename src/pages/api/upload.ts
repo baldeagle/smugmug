@@ -22,22 +22,6 @@ function validateImageMagicBytes(buffer: ArrayBuffer): boolean {
   });
 }
 
-export const GET: APIRoute = async ({ cookies }) => {
-  try {
-    const authed = await isAuthenticated(cookies);
-    const store = getStore("photos");
-    const { blobs } = await store.list();
-    return new Response(JSON.stringify({ authed, storeOk: true, existingPhotos: blobs.length }), {
-      headers: { "Content-Type": "application/json" },
-    });
-  } catch (err: any) {
-    return new Response(JSON.stringify({ error: err?.message, stack: err?.stack }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-};
-
 export const POST: APIRoute = async ({ request, cookies }) => {
   try {
     if (!(await isAuthenticated(cookies))) {

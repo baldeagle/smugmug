@@ -319,8 +319,15 @@ export default function GalleryApp({ initialPhotoKey, mode = "gallery" }: Props)
 
   const photo = photos[current];
   if (!photo) return null;
-  const nextIdx = current + 1;
-  const prevIdx = current - 1;
+
+  const preloadAhead = isMobile() ? 2 : 4;
+  const preloadIndices: number[] = [];
+  for (let d = -1; d <= preloadAhead; d++) {
+    const idx = current + d;
+    if (idx >= 0 && idx < photos.length && idx !== current) {
+      preloadIndices.push(idx);
+    }
+  }
 
   return (
     <div className={`gallery ${fullscreen ? "fullscreen" : ""}`} ref={slideRef}>
@@ -351,12 +358,9 @@ export default function GalleryApp({ initialPhotoKey, mode = "gallery" }: Props)
 
         {photos.length > 1 && (
           <div style={{ display: "none" }}>
-            {nextIdx < photos.length && (
-              <img src={`/api/photo/${encodeURIComponent(photos[nextIdx].key)}`} alt="" />
-            )}
-            {prevIdx >= 0 && (
-              <img src={`/api/photo/${encodeURIComponent(photos[prevIdx].key)}`} alt="" />
-            )}
+            {preloadIndices.map((idx) => (
+              <img key={photos[idx].key} src={`/api/photo/${encodeURIComponent(photos[idx].key)}`} alt="" />
+            ))}
           </div>
         )}
 
@@ -402,7 +406,7 @@ export default function GalleryApp({ initialPhotoKey, mode = "gallery" }: Props)
               className={`thumb ${i === current ? "active" : ""}`}
               onClick={() => setCurrent(i)}
             >
-              <img src={thumbUrl(p.filename)} alt={p.filename} loading="lazy" />
+              <img src={thumbUrl(p.filename)} alt={p.filename} loading={Math.abs(i - current) <= 8 ? "eager" : "lazy"} />
               {stars[p.key] ? <span className="thumb-star">{stars[p.key]}</span> : null}
             </button>
           ))}

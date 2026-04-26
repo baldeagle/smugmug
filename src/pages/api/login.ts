@@ -1,35 +1,10 @@
 import type { APIRoute } from "astro";
 import { getStore } from "@netlify/blobs";
-import { checkPassword, createToken, verifyToken } from "../../lib/auth";
-
-export const GET: APIRoute = async ({ cookies }) => {
-  const pw = process.env.ADMIN_PASSWORD || import.meta.env.ADMIN_PASSWORD;
-  const token = cookies.get("session")?.value;
-  let tokenValid = false;
-  if (token) {
-    tokenValid = await verifyToken(token);
-  }
-  return new Response(JSON.stringify({
-    envLoaded: !!pw,
-    length: pw?.length ?? 0,
-    first: pw?.[0] ?? "",
-    last: pw?.[pw.length - 1] ?? "",
-    hasCookie: !!token,
-    cookieLength: token?.length ?? 0,
-    tokenValid,
-  }), {
-    headers: { "Content-Type": "application/json" },
-  });
-};
+import { checkPassword, createToken } from "../../lib/auth";
+import { getClientIP } from "../../lib/rate-limit";
 
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 15 * 60 * 1000;
-
-function getClientIP(request: Request): string {
-  const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0].trim();
-  return request.headers.get("x-real-ip") || "unknown";
-}
 
 interface RateLimitEntry {
   count: number;

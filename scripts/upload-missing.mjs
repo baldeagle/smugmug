@@ -22,6 +22,12 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function filenameFromKey(key) {
+  const parts = key.split("-");
+  if (parts.length >= 3) return parts.slice(2).join("-");
+  return key;
+}
+
 async function scanDirectory(dir) {
   const files = [];
   const entries = await readdir(dir, { withFileTypes: true });
@@ -205,12 +211,14 @@ async function main() {
   const storeName = isThumbs ? "thumbs" : "photos";
   const store = getStore({ name: storeName, siteID, token });
   const { blobs } = await store.list();
-  const existingFilenames = new Set(blobs.map((b) => b.key.toLowerCase()));
+  const existingFilenames = new Set(
+    isThumbs
+      ? blobs.map((b) => b.key.toLowerCase())
+      : blobs.map((b) => filenameFromKey(b.key).toLowerCase())
+  );
   console.log(`Store has ${blobs.length} entries.`);
 
-  const missing = isThumbs
-    ? localFiles.filter((f) => !existingFilenames.has(basename(f).toLowerCase()))
-    : localFiles.filter((f) => !existingFilenames.has(basename(f).toLowerCase()));
+  const missing = localFiles.filter((f) => !existingFilenames.has(basename(f).toLowerCase()));
   if (missing.length === 0) {
     console.log("All photos already uploaded. Nothing to do.");
     return;
