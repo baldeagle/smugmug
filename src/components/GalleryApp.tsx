@@ -267,6 +267,21 @@ export default function GalleryApp({ initialPhotoKey }: Props) {
   const sharePhoto = async () => {
     if (photos.length === 0) return;
     const photo = photos[current];
+
+    if (!myStars.has(photo.key)) {
+      try {
+        const res = await fetch(`/api/star/${encodeURIComponent(photo.key)}`, { method: "POST" });
+        if (res.ok) {
+          const data = await res.json();
+          setStars((prev) => ({ ...prev, [photo.key]: data.stars }));
+          const next = new Set(myStars);
+          next.add(photo.key);
+          setMyStars(next);
+          localStorage.setItem("myStars", JSON.stringify([...next]));
+        }
+      } catch {}
+    }
+
     const url = `${window.location.origin}/photo/${encodeURIComponent(photo.key)}`;
     if (navigator.share) {
       try {

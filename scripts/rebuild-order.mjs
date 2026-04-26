@@ -1,7 +1,7 @@
 import { getStore } from "@netlify/blobs";
 
-const BATCH_SIZE = 5;
-const BATCH_DELAY_MS = 500;
+const BATCH_SIZE = 20;
+const BATCH_DELAY_MS = 200;
 const MAX_RETRIES = 3;
 
 function sleep(ms) {
