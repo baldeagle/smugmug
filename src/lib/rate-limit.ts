@@ -46,7 +46,7 @@ export function checkReferer(request: Request): boolean {
   try {
     const url = new URL(referer);
     const allowed = [
-      "abaldiwn.netlify.app",
+      "abaldwin.netlify.app",
       "localhost",
     ];
     return allowed.some((host) => url.hostname === host || url.hostname.endsWith(`.${host}`));

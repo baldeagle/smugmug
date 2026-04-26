@@ -1,5 +1,5 @@
 import { getStore } from '@netlify/blobs';
-import { g as getClientIP, c as checkRateLimit, R as ROBOTS_HEADERS } from '../../chunks/rate-limit_CT6SyZ0q.mjs';
+import { g as getClientIP, c as checkRateLimit, R as ROBOTS_HEADERS } from '../../chunks/rate-limit_DIt3Mpea.mjs';
 export { renderers } from '../../renderers.mjs';
 
 function filenameFromKey(key) {
