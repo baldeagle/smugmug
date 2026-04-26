@@ -6,9 +6,11 @@ import { readFile } from "node:fs/promises";
 
 const PHOTOS_DIR = "E:\\Photos\\Capoeria 20th Day 2\\uploads";
 const THUMBS_DIR = "E:\\Photos\\Capoeria 20th Day 2\\thumbnails";
+const MOBILE_DIR = "E:\\Photos\\Capoeria 20th Day 2\\mobile";
 const BATCH_DELAY_MS = 300;
 const MISSING_PHOTOS_FILE = "scripts/.missing-photos.json";
 const MISSING_THUMBS_FILE = "scripts/.missing-thumbs.json";
+const MISSING_MOBILE_FILE = "scripts/.missing-mobile.json";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -19,6 +21,13 @@ function thumbNameFromFilename(filename) {
   const base = dotIdx > 0 ? filename.slice(0, dotIdx) : filename;
   const ext = dotIdx > 0 ? filename.slice(dotIdx) : "";
   return base + "_thumb" + ext;
+}
+
+function mobileNameFromFilename(filename) {
+  const dotIdx = filename.lastIndexOf(".");
+  const base = dotIdx > 0 ? filename.slice(0, dotIdx) : filename;
+  const ext = dotIdx > 0 ? filename.slice(dotIdx) : "";
+  return base + "_mobile" + ext;
 }
 
 function contentTypeFor(filename) {
@@ -125,6 +134,44 @@ async function uploadMissingThumbs(thumbStore, missingThumbs) {
   return uploaded;
 }
 
+async function uploadMissingMobile(mobileStore, missingMobile) {
+  if (missingMobile.length === 0) {
+    console.log("No missing mobile images to upload.");
+    return 0;
+  }
+
+  console.log(`\nUploading ${missingMobile.length} missing mobile images...\n`);
+  let uploaded = 0;
+  let failed = 0;
+
+  for (let i = 0; i < missingMobile.length; i++) {
+    const { filename, mobileKey } = missingMobile[i];
+    const mobileFilename = mobileNameFromFilename(filename);
+    const filepath = join(MOBILE_DIR, mobileFilename);
+
+    try {
+      const data = await readFile(filepath);
+      await mobileStore.set(mobileKey, new Uint8Array(data), {
+        metadata: {
+          filename: mobileFilename,
+          contentType: contentTypeFor(mobileFilename),
+          size: String(data.length),
+        },
+      });
+      uploaded++;
+    } catch (err) {
+      failed++;
+      console.error(`\n  Failed ${mobileFilename}: ${err.message || err}`);
+    }
+
+    process.stdout.write(`\r  [${i + 1}/${missingMobile.length}] ${uploaded} uploaded, ${failed} failed   `);
+    if (i < missingMobile.length - 1) await sleep(BATCH_DELAY_MS);
+  }
+
+  console.log(`\nMobile done: ${uploaded} uploaded, ${failed} failed.`);
+  return uploaded;
+}
+
 async function main() {
   const token = process.env.NETLIFY_BLOBS_SECRET;
   const siteID = process.env.NETLIFY_SITE_ID;
@@ -135,11 +182,13 @@ async function main() {
   }
 
   const args = process.argv.slice(2);
-  const doPhotos = !args.includes("--thumbs-only");
-  const doThumbs = !args.includes("--photos-only");
+  const doPhotos = !args.includes("--thumbs-only") && !args.includes("--mobile-only");
+  const doThumbs = !args.includes("--photos-only") && !args.includes("--mobile-only");
+  const doMobile = !args.includes("--photos-only") && !args.includes("--thumbs-only");
 
   const store = getStore({ name: "photos", siteID, token });
   const thumbStore = getStore({ name: "thumbs", siteID, token });
+  const mobileStore = getStore({ name: "mobile", siteID, token });
 
   let totalUploaded = 0;
 
@@ -167,6 +216,20 @@ async function main() {
 
     if (missingThumbs.length > 0) {
       const count = await uploadMissingThumbs(thumbStore, missingThumbs);
+      totalUploaded += count;
+    }
+  }
+
+  if (doMobile) {
+    let missingMobile = [];
+    try {
+      missingMobile = JSON.parse(readFileSync(MISSING_MOBILE_FILE, "utf-8"));
+    } catch {
+      console.log("No .missing-mobile.json found. Run local-reorder.mjs first.");
+    }
+
+    if (missingMobile.length > 0) {
+      const count = await uploadMissingMobile(mobileStore, missingMobile);
       totalUploaded += count;
     }
   }

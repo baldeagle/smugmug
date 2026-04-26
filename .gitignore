@@ -3,3 +3,9 @@ dist
 .astro
 .netlify
 scripts/upload.mjs
+CONTEXT.md
+scripts/.order-cache.json
+scripts/.order-progress.json
+scripts/.backfill-progress.json
+scripts/.missing-photos.json
+scripts/.missing-thumbs.json

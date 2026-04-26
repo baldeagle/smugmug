@@ -25,6 +25,15 @@ function thumbUrl(filename: string): string {
   return `/api/thumb/${encodeURIComponent(base + "_thumb" + ext)}`;
 }
 
+function mobileUrl(key: string): string {
+  return `/api/mobile/${encodeURIComponent(key)}`;
+}
+
+function slideUrl(key: string): string {
+  if (isMobile()) return mobileUrl(key);
+  return `/api/photo/${encodeURIComponent(key)}`;
+}
+
 interface Props {
   initialPhotoKey?: string;
   mode?: "gallery" | "highlights";
@@ -408,7 +417,7 @@ export default function GalleryApp({ initialPhotoKey, mode = "gallery" }: Props)
         onTouchEnd={handleTouchEnd}
       >
         <img
-          src={`/api/photo/${encodeURIComponent(photo.key)}`}
+          src={slideUrl(photo.key)}
           alt={photo.filename}
           className="slide-image"
           key={photo.key}
@@ -424,7 +433,7 @@ export default function GalleryApp({ initialPhotoKey, mode = "gallery" }: Props)
         {photos.length > 1 && (
           <div style={{ display: "none" }}>
             {preloadIndices.map((idx) => (
-              <img key={photos[idx].key} src={`/api/photo/${encodeURIComponent(photos[idx].key)}`} alt="" />
+              <img key={photos[idx].key} src={slideUrl(photos[idx].key)} alt="" />
             ))}
           </div>
         )}

@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 const PHOTOS_DIR = "E:\\Photos\\Capoeria 20th Day 2\\uploads";
 const THUMBS_DIR = "E:\\Photos\\Capoeria 20th Day 2\\thumbnails";
+const MOBILE_DIR = "E:\\Photos\\Capoeria 20th Day 2\\mobile";
 const CACHE_FILE = "scripts/.order-cache.json";
 
 function sleep(ms) {
@@ -22,6 +23,13 @@ function thumbNameFromFilename(filename) {
   const base = dotIdx > 0 ? filename.slice(0, dotIdx) : filename;
   const ext = dotIdx > 0 ? filename.slice(dotIdx) : "";
   return base + "_thumb" + ext;
+}
+
+function mobileNameFromFilename(filename) {
+  const dotIdx = filename.lastIndexOf(".");
+  const base = dotIdx > 0 ? filename.slice(0, dotIdx) : filename;
+  const ext = dotIdx > 0 ? filename.slice(dotIdx) : "";
+  return base + "_mobile" + ext;
 }
 
 async function extractExifDates() {
@@ -82,16 +90,19 @@ async function main() {
   console.log("Fetching blob list from store...");
   const store = getStore({ name: "photos", siteID, token });
   const thumbStore = getStore({ name: "thumbs", siteID, token });
+  const mobileStore = getStore({ name: "mobile", siteID, token });
 
-  const [{ blobs: photoBlobs }, { blobs: thumbBlobs }] = await Promise.all([
+  const [{ blobs: photoBlobs }, { blobs: thumbBlobs }, { blobs: mobileBlobs }] = await Promise.all([
     store.list(),
     thumbStore.list(),
+    mobileStore.list(),
   ]);
 
   const photoKeys = photoBlobs.filter((b) => !b.key.startsWith("__")).map((b) => b.key);
   const thumbKeys = new Set(thumbBlobs.map((b) => b.key));
+  const mobileKeys = new Set(mobileBlobs.map((b) => b.key));
 
-  console.log(`Store has ${photoKeys.length} photo blobs, ${thumbKeys.size} thumb blobs.\n`);
+  console.log(`Store has ${photoKeys.length} photo blobs, ${thumbKeys.size} thumb blobs, ${mobileKeys.size} mobile blobs.\n`);
 
   const blobByFilename = {};
   for (const key of photoKeys) {
@@ -107,20 +118,26 @@ async function main() {
   });
 
   const missingThumbs = [];
+  const missingMobile = [];
   for (const key of photoKeys) {
     const fname = filenameFromKey(key);
     const thumbKey = thumbNameFromFilename(fname);
+    const mobileKey = mobileNameFromFilename(fname);
     if (!thumbKeys.has(thumbKey)) {
       missingThumbs.push({ key, filename: fname, thumbKey });
+    }
+    if (!mobileKeys.has(mobileKey)) {
+      missingMobile.push({ key, filename: fname, mobileKey });
     }
   }
 
   console.log(`=== Cross-reference Report ===`);
-  console.log(`Local files:      ${localFiles.length}`);
-  console.log(`Store blobs:      ${photoKeys.length}`);
+  console.log(`Local files:        ${localFiles.length}`);
+  console.log(`Store blobs:        ${photoKeys.length}`);
   console.log(`Missing from store: ${missingFromStore.length}`);
   console.log(`Extra in store:     ${extraInStore.length}`);
   console.log(`Missing thumbs:     ${missingThumbs.length}`);
+  console.log(`Missing mobile:     ${missingMobile.length}`);
 
   if (missingFromStore.length > 0) {
     writeFileSync("scripts/.missing-photos.json", JSON.stringify(missingFromStore, null, 2));
@@ -132,6 +149,12 @@ async function main() {
     writeFileSync("scripts/.missing-thumbs.json", JSON.stringify(missingThumbs, null, 2));
     console.log(`Missing thumbs saved to scripts/.missing-thumbs.json`);
     console.log(`First 10: ${missingThumbs.slice(0, 10).map((m) => m.filename).join(", ")}`);
+  }
+
+  if (missingMobile.length > 0) {
+    writeFileSync("scripts/.missing-mobile.json", JSON.stringify(missingMobile, null, 2));
+    console.log(`Missing mobile saved to scripts/.missing-mobile.json`);
+    console.log(`First 10: ${missingMobile.slice(0, 10).map((m) => m.filename).join(", ")}`);
   }
 
   const entries = photoKeys.map((key) => {
