@@ -9,8 +9,9 @@ function filenameFromKey(key) {
 }
 async function buildOrderCache(store) {
   const { blobs } = await store.list();
+  const photoBlobs = blobs.filter((b) => !b.key.startsWith("__"));
   const entries = await Promise.all(
-    blobs.map(async (blob) => {
+    photoBlobs.map(async (blob) => {
       try {
         const meta = await store.getMetadata(blob.key);
         return { key: blob.key, exifDate: meta?.exifDate || "" };

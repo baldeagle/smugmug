@@ -23,11 +23,12 @@ async function fetchMetadata(store, photoBlobs) {
         return { key: blob.key, exifDate: meta?.exifDate || "" };
       })
     );
-    for (const result of results) {
+    for (let j = 0; j < results.length; j++) {
+      const result = results[j];
       if (result.status === "fulfilled") {
         entries.push(result.value);
       } else {
-        entries.push({ key: "?", exifDate: "" });
+        entries.push({ key: batch[j].key, exifDate: "" });
         errors++;
       }
     }
