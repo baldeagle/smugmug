@@ -27,9 +27,10 @@ function thumbUrl(filename: string): string {
 
 interface Props {
   initialPhotoKey?: string;
+  mode?: "gallery" | "highlights";
 }
 
-export default function GalleryApp({ initialPhotoKey }: Props) {
+export default function GalleryApp({ initialPhotoKey, mode = "gallery" }: Props) {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [stars, setStars] = useState<Record<string, number>>({});
   const [myStars, setMyStars] = useState<Set<string>>(new Set());
@@ -73,9 +74,10 @@ export default function GalleryApp({ initialPhotoKey }: Props) {
     setFetchingMore(true);
     const limit = getPageSize();
     const page = nextPageRef.current;
+    const endpoint = mode === "highlights" ? "/api/highlights" : "/api/photos";
     try {
       const [photoRes, starRes] = await Promise.all([
-        fetch(`/api/photos?page=${page}&limit=${limit}`),
+        fetch(`${endpoint}?page=${page}&limit=${limit}`),
         fetch("/api/stars"),
       ]);
       const photoData = await photoRes.json();
@@ -95,8 +97,10 @@ export default function GalleryApp({ initialPhotoKey }: Props) {
       setHasMore(page < totalPages);
     } catch {}
     setFetchingMore(false);
-    trimPhotos(photosRef.current.length > 0 ? photosRef.current.length - 1 : 0);
-  }, [trimPhotos]);
+    if (mode !== "highlights") {
+      trimPhotos(photosRef.current.length > 0 ? photosRef.current.length - 1 : 0);
+    }
+  }, [trimPhotos, mode]);
 
   useEffect(() => {
     const loadInitial = async () => {
@@ -112,8 +116,10 @@ export default function GalleryApp({ initialPhotoKey }: Props) {
       const starData = await starRes.json();
       setStars(starData);
 
+      const endpoint = mode === "highlights" ? "/api/highlights" : "/api/photos";
+
       const photoKey = initialPhotoKey || new URLSearchParams(window.location.search).get("photo");
-      if (photoKey) {
+      if (photoKey && mode !== "highlights") {
         try {
           const pageRes = await fetch(`/api/photo-page?key=${encodeURIComponent(initialPhotoKey)}`);
           if (pageRes.ok) {
@@ -137,7 +143,7 @@ export default function GalleryApp({ initialPhotoKey }: Props) {
       }
 
       try {
-        const photoRes = await fetch(`/api/photos?page=1&limit=${limit}`);
+        const photoRes = await fetch(`${endpoint}?page=1&limit=${limit}`);
         const photoData = await photoRes.json();
         setPhotos(photoData?.photos || []);
         setTotal(photoData?.total || 0);
@@ -150,7 +156,7 @@ export default function GalleryApp({ initialPhotoKey }: Props) {
     };
 
     loadInitial();
-  }, [initialPhotoKey]);
+  }, [initialPhotoKey, mode]);
 
   useEffect(() => {
     if (hasMore && !fetchingMore && photos.length > 0 && current >= photos.length - 3) {
@@ -298,14 +304,15 @@ export default function GalleryApp({ initialPhotoKey }: Props) {
   };
 
   if (loading) {
-    return <div className="gallery-loading">Loading gallery...</div>;
+    return <div className="gallery-loading">{mode === "highlights" ? "Loading highlights..." : "Loading gallery..."}</div>;
   }
 
   if (photos.length === 0) {
     return (
       <div className="gallery-empty">
-        <h2>No photos yet</h2>
-        <p>Visit the <a href="/admin">admin page</a> to upload photos.</p>
+        <h2>{mode === "highlights" ? "No highlights yet" : "No photos yet"}</h2>
+        <p>{mode === "highlights" ? "Star some photos to see them here!" : "Visit the"} {mode !== "highlights" && <a href="/admin">admin page</a>} {mode !== "highlights" && "to upload photos."}</p>
+        {mode === "highlights" && <p><a href="/">Browse the full gallery</a> to star your favorites.</p>}
       </div>
     );
   }
@@ -318,7 +325,9 @@ export default function GalleryApp({ initialPhotoKey }: Props) {
   return (
     <div className={`gallery ${fullscreen ? "fullscreen" : ""}`} ref={slideRef}>
       <div className="gallery-banner">
-        Star your favorite photos and the most popular ones will be uploaded in full resolution!
+        {mode === "highlights"
+          ? "Highlights \u2014 the most starred and shared photos!"
+          : "Star your favorites or share a photo to boost it into the Highlights reel!"}
       </div>
 
       <div
