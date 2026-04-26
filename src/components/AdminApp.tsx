@@ -3,13 +3,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 const MAX_UPLOAD_MB = 5;
 const MAX_DIMENSION = 4000;
 
-function thumbUrl(filename: string): string {
-  const dotIdx = filename.lastIndexOf(".");
-  const base = dotIdx > 0 ? filename.slice(0, dotIdx) : filename;
-  const ext = dotIdx > 0 ? filename.slice(dotIdx) : "";
-  return `/api/thumb/${encodeURIComponent(base + "_thumb" + ext)}`;
-}
-
 function resizeFile(file: File): Promise<File> {
   return new Promise((resolve) => {
     if (file.size <= MAX_UPLOAD_MB * 1024 * 1024) {
@@ -53,12 +46,34 @@ function Toast({ message, type }: { message: string; type: "success" | "error" }
   return <div className={`toast ${type}`}>{message}</div>;
 }
 
+interface PhotoStat {
+  key: string;
+  filename: string;
+  thumbUrl: string;
+  views: number;
+  totalDuration: number;
+  avgDuration: number;
+  stars: number;
+  score: number;
+}
+
+type SortField = "score" | "views" | "duration" | "stars" | "name";
+type SortDir = "asc" | "desc";
+
 export default function AdminApp() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [password, setPassword] = useState("");
-  const [photos, setPhotos] = useState<any[]>([]);
-  const [starCounts, setStarCounts] = useState<Record<string, number>>({});
+  const [stats, setStats] = useState<PhotoStat[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalViews, setTotalViews] = useState(0);
+  const [totalStars, setTotalStars] = useState(0);
+  const [avgViews, setAvgViews] = useState(0);
+  const [sort, setSort] = useState<SortField>("score");
+  const [dir, setDir] = useState<SortDir>("desc");
   const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -68,25 +83,44 @@ export default function AdminApp() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const checkAuth = useCallback(async () => {
+  const fetchStats = useCallback(async (p: number, s: SortField, d: SortDir) => {
     try {
-      const [photoRes, starRes] = await Promise.all([
-        fetch("/api/photos"),
-        fetch("/api/stars"),
-      ]);
-      if (photoRes.ok) {
-        const data = await photoRes.json();
-        setPhotos(data);
-      }
-      if (starRes.ok) {
-        setStarCounts(await starRes.json());
+      const res = await fetch(`/api/metrics?page=${p}&limit=50&sort=${s}&dir=${d}`);
+      if (res.ok) {
+        const data = await res.json();
+        setStats(data.photos || []);
+        setTotalPages(data.totalPages || 1);
+        setTotal(data.total || 0);
+        setTotalViews(data.totalViews || 0);
+        setTotalStars(data.totalStars || 0);
+        setAvgViews(data.avgViews || 0);
+      } else if (res.status === 401) {
+        setLoggedIn(false);
       }
     } catch {}
+    setLoading(false);
   }, []);
 
   useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
+    fetchStats(page, sort, dir);
+  }, [page, sort, dir, fetchStats]);
+
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const res = await fetch("/api/metrics?page=1&limit=1&sort=score&dir=desc");
+        if (res.status === 401) {
+          setLoggedIn(false);
+          setLoading(false);
+        } else if (res.ok) {
+          setLoggedIn(true);
+        }
+      } catch {
+        setLoading(false);
+      }
+    };
+    check();
+  }, []);
 
   const login = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,7 +132,8 @@ export default function AdminApp() {
     if (res.ok) {
       setLoggedIn(true);
       setPassword("");
-      checkAuth();
+      setLoading(true);
+      fetchStats(1, sort, dir);
     } else {
       showToast("Invalid password", "error");
     }
@@ -118,14 +153,13 @@ export default function AdminApp() {
         const data = await res.json();
         const msgs = [];
         if (data.uploaded?.length) msgs.push(`Uploaded ${data.uploaded.length} photo(s)`);
-        if (data.errors?.length) msgs.push(`${data.errors.length} failed: ${data.errors.map((e: any) => e.error).join(", ")}`);
+        if (data.errors?.length) msgs.push(`${data.errors.length} failed`);
         if (msgs.length === 0) msgs.push("No files were uploaded");
         showToast(msgs.join(" | "), data.uploaded?.length ? "success" : "error");
-        checkAuth();
+        fetchStats(page, sort, dir);
       } else {
-        const text = await res.text();
-        showToast(`Upload failed (${res.status}): ${text}`, "error");
         if (res.status === 401) setLoggedIn(false);
+        else showToast("Upload failed", "error");
       }
     } catch {
       showToast("Upload failed", "error");
@@ -139,7 +173,7 @@ export default function AdminApp() {
     const res = await fetch(`/api/delete/${encodeURIComponent(key)}`, { method: "DELETE" });
     if (res.ok) {
       showToast("Photo deleted", "success");
-      checkAuth();
+      fetchStats(page, sort, dir);
     } else {
       showToast("Delete failed", "error");
     }
@@ -151,10 +185,26 @@ export default function AdminApp() {
     upload(e.dataTransfer.files);
   };
 
-  const formatSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / 1048576).toFixed(1)} MB`;
+  const toggleSort = (field: SortField) => {
+    if (sort === field) {
+      setDir((d) => d === "asc" ? "desc" : "asc");
+    } else {
+      setSort(field);
+      setDir("desc");
+    }
+    setPage(1);
+  };
+
+  const sortIndicator = (field: SortField) => {
+    if (sort !== field) return " \u2195";
+    return dir === "asc" ? " \u25B2" : " \u25BC";
+  };
+
+  const fmtDuration = (sec: number) => {
+    if (sec < 60) return `${sec.toFixed(1)}s`;
+    const m = Math.floor(sec / 60);
+    const s = Math.round(sec % 60);
+    return `${m}m ${s}s`;
   };
 
   if (!loggedIn) {
@@ -218,16 +268,35 @@ export default function AdminApp() {
         </div>
       </div>
 
+      <div className="stats-summary">
+        <div className="stat-card">
+          <span className="stat-value">{total.toLocaleString()}</span>
+          <span className="stat-label">Photos</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-value">{totalViews.toLocaleString()}</span>
+          <span className="stat-label">Total Views</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-value">{avgViews}</span>
+          <span className="stat-label">Avg Views</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-value">{totalStars.toLocaleString()}</span>
+          <span className="stat-label">Total Stars</span>
+        </div>
+      </div>
+
       <div className="photo-grid-header">
-        <h2>{photos.length} photo{photos.length !== 1 ? "s" : ""}</h2>
-        {photos.length > 0 && (
+        <h2>Photo Metrics</h2>
+        {total > 0 && (
           <button className="btn-danger" onClick={async () => {
-            if (!confirm(`Delete ALL ${photos.length} photos? This cannot be undone.`)) return;
+            if (!confirm(`Delete ALL ${total} photos? This cannot be undone.`)) return;
             const res = await fetch("/api/delete/__all__", { method: "DELETE" });
             if (res.ok) {
               const data = await res.json();
               showToast(`Deleted ${data.deleted} photo(s)`, "success");
-              checkAuth();
+              fetchStats(1, sort, dir);
             } else {
               showToast("Delete all failed", "error");
             }
@@ -235,30 +304,71 @@ export default function AdminApp() {
         )}
       </div>
 
-      {photos.length === 0 ? (
-        <div className="empty-state">
-          <p>No photos yet. Upload some to get started!</p>
-        </div>
+      {loading ? (
+        <div className="empty-state"><p>Loading metrics...</p></div>
+      ) : stats.length === 0 ? (
+        <div className="empty-state"><p>No photos yet. Upload some to get started!</p></div>
       ) : (
-        <div className="admin-grid">
-          {photos.map((photo) => (
-            <div key={photo.key} className="admin-photo-card">
-              <div className="admin-photo-thumb">
-                <img src={thumbUrl(photo.filename)} alt={photo.filename} loading="lazy" />
-              </div>
-              <div className="admin-photo-info">
-                <span className="photo-name" title={photo.filename}>{photo.filename}</span>
-                <span className="photo-meta">
-                  {formatSize(photo.size)}
-                  {starCounts[photo.key] ? ` · ${starCounts[photo.key]} stars` : ""}
-                </span>
-              </div>
-              <button className="btn-danger btn-sm" onClick={() => deletePhoto(photo.key)}>
-                Delete
+        <>
+          <div className="metrics-table-wrap">
+            <table className="metrics-table">
+              <thead>
+                <tr>
+                  <th className="col-rank">#</th>
+                  <th className="col-thumb">Photo</th>
+                  <th className="sortable" onClick={() => toggleSort("name")}>Filename{sortIndicator("name")}</th>
+                  <th className="sortable" onClick={() => toggleSort("views")}>Views{sortIndicator("views")}</th>
+                  <th className="sortable" onClick={() => toggleSort("duration")}>Avg Time{sortIndicator("duration")}</th>
+                  <th className="sortable" onClick={() => toggleSort("stars")}>Stars{sortIndicator("stars")}</th>
+                  <th className="sortable" onClick={() => toggleSort("score")}>Score{sortIndicator("score")}</th>
+                  <th className="col-actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.map((photo, i) => (
+                  <tr key={photo.key}>
+                    <td className="col-rank">{(page - 1) * 50 + i + 1}</td>
+                    <td className="col-thumb">
+                      <img src={photo.thumbUrl} alt={photo.filename} loading="lazy" />
+                    </td>
+                    <td className="col-name" title={photo.filename}>{photo.filename}</td>
+                    <td>{photo.views.toLocaleString()}</td>
+                    <td>{fmtDuration(photo.avgDuration)}</td>
+                    <td>{photo.stars > 0 ? photo.stars : "\u2014"}</td>
+                    <td>{photo.score}</td>
+                    <td className="col-actions">
+                      <button className="btn-danger btn-sm" onClick={() => deletePhoto(photo.key)}>
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="pagination">
+              <button
+                className="btn-ghost"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </button>
+              <span className="page-info">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                className="btn-ghost"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                Next
               </button>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
       {toast && <Toast message={toast.message} type={toast.type} />}

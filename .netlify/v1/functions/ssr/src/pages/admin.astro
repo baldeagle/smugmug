@@ -81,10 +81,108 @@ import AdminApp from "../components/AdminApp";
     color: var(--text-muted);
   }
 
-  .admin-grid {
+  .stats-summary {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(4, 1fr);
     gap: 12px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .stat-value {
+    font-size: 24px;
+    font-weight: 700;
+  }
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .metrics-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .metrics-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .metrics-table th {
+    background: var(--bg-card);
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+    user-select: none;
+  }
+  .metrics-table th.sortable {
+    cursor: pointer;
+  }
+  .metrics-table th.sortable:hover {
+    color: var(--accent);
+  }
+  .metrics-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .metrics-table tr:hover td {
+    background: rgba(59, 130, 246, 0.03);
+  }
+  .col-rank {
+    width: 40px;
+    text-align: center;
+    color: var(--text-muted);
+  }
+  .col-thumb {
+    width: 56px;
+  }
+  .col-thumb img {
+    width: 48px;
+    height: 36px;
+    object-fit: cover;
+    border-radius: 4px;
+    background: #111;
+  }
+  .col-name {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .col-actions {
+    width: 70px;
+  }
+
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 16px;
+    padding: 12px 0;
+  }
+  .page-info {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .pagination button:disabled {
+    opacity: 0.3;
   }
 
   @media (max-width: 640px) {
@@ -95,49 +193,18 @@ import AdminApp from "../components/AdminApp";
     .upload-zone {
       padding: 24px;
     }
-    .admin-grid {
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    .stats-summary {
+      grid-template-columns: repeat(2, 1fr);
     }
-  }
-  .admin-photo-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-  }
-  .admin-photo-thumb {
-    aspect-ratio: 4/3;
-    overflow: hidden;
-    background: #111;
-  }
-  .admin-photo-thumb img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-  .admin-photo-info {
-    padding: 8px 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    flex: 1;
-  }
-  .photo-name {
-    font-size: 12px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .photo-meta {
-    font-size: 11px;
-    color: var(--text-muted);
-  }
-  .admin-photo-card .btn-sm {
-    margin: 0 8px 8px;
-    padding: 4px 10px;
-    font-size: 11px;
-    align-self: flex-start;
+    .metrics-table {
+      font-size: 12px;
+    }
+    .metrics-table th,
+    .metrics-table td {
+      padding: 6px 8px;
+    }
+    .col-name {
+      max-width: 100px;
+    }
   }
 </style>

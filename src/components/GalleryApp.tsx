@@ -54,10 +54,31 @@ export default function GalleryApp({ initialPhotoKey, mode = "gallery" }: Props)
   const hasMoreRef = useRef(false);
   const fetchingMoreRef = useRef(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
+  const viewStartRef = useRef(0);
+  const prevKeyRef = useRef<string | null>(null);
 
   useEffect(() => { photosRef.current = photos; }, [photos]);
   useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
   useEffect(() => { fetchingMoreRef.current = fetchingMore; }, [fetchingMore]);
+
+  function computeDuration(elapsedSec: number): number {
+    if (elapsedSec <= 90) return elapsedSec;
+    return 90 * Math.exp(-(elapsedSec - 90) / 30);
+  }
+
+  function submitView(key: string, start: number) {
+    const elapsed = (Date.now() - start) / 1000;
+    const duration = computeDuration(elapsed);
+    if (duration < 2) return;
+    try {
+      fetch("/api/metrics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, duration: Math.round(duration * 100) / 100 }),
+        keepalive: true,
+      }).catch(() => {});
+    } catch {}
+  }
 
   const trimPhotos = useCallback((currentIdx: number) => {
     const max = getMaxPhotos();
@@ -67,6 +88,50 @@ export default function GalleryApp({ initialPhotoKey, mode = "gallery" }: Props)
     setGlobalOffset((prev) => prev + keepFrom);
     setPhotos(photosRef.current.slice(keepFrom));
     setCurrent(currentIdx - keepFrom);
+  }, []);
+
+  useEffect(() => {
+    if (photos.length === 0 || current >= photos.length) return;
+    const photo = photos[current];
+    if (!photo) return;
+
+    if (prevKeyRef.current && viewStartRef.current > 0) {
+      submitView(prevKeyRef.current, viewStartRef.current);
+    }
+
+    prevKeyRef.current = photo.key;
+    viewStartRef.current = Date.now();
+  }, [current, photos]);
+
+  useEffect(() => {
+    const onUnload = () => {
+      if (prevKeyRef.current && viewStartRef.current > 0) {
+        const elapsed = (Date.now() - viewStartRef.current) / 1000;
+        const duration = computeDuration(elapsed);
+        if (duration >= 2) {
+          navigator.sendBeacon?.(
+            "/api/metrics",
+            JSON.stringify({ key: prevKeyRef.current, duration: Math.round(duration * 100) / 100 })
+          );
+        }
+      }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        if (prevKeyRef.current && viewStartRef.current > 0) {
+          submitView(prevKeyRef.current, viewStartRef.current);
+          viewStartRef.current = Date.now();
+        }
+      } else {
+        viewStartRef.current = Date.now();
+      }
+    };
+    window.addEventListener("beforeunload", onUnload);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("beforeunload", onUnload);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, []);
 
   const fetchMore = useCallback(async () => {

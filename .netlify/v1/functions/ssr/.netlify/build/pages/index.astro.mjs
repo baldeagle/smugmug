@@ -1,7 +1,7 @@
 import { c as createComponent, i as renderComponent, r as renderTemplate } from '../chunks/astro/server_DtASbT4X.mjs';
 import 'piccolore';
 import { $ as $$BaseLayout } from '../chunks/BaseLayout_BEWLDVHA.mjs';
-import { G as GalleryApp } from '../chunks/GalleryApp_DcbL-iIV.mjs';
+import { G as GalleryApp } from '../chunks/GalleryApp_CffPAcv5.mjs';
 /* empty css                                 */
 export { renderers } from '../renderers.mjs';
 

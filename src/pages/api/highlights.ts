@@ -17,19 +17,45 @@ export const GET: APIRoute = async ({ url, request, clientAddress }) => {
   const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
   const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 20));
 
-  const starStore = getStore("stars");
-  const { blobs } = await starStore.list();
+  const [starStore, metricsStore] = [getStore("stars"), getStore("metrics")];
+  const [starBlobs, metricsBlobs] = await Promise.all([
+    starStore.list(),
+    metricsStore.list(),
+  ]);
 
-  const entries: { key: string; count: number }[] = [];
-  for (const b of blobs) {
-    try {
-      const raw = await starStore.get(b.key, { type: "text" });
-      const count = raw ? parseInt(raw, 10) : 0;
-      if (count > 0) entries.push({ key: b.key, count });
-    } catch {}
+  const stars: Record<string, number> = {};
+  const viewData: Record<string, { v: number; d: number }> = {};
+
+  await Promise.all([
+    ...starBlobs.blobs.map(async (b) => {
+      try {
+        const raw = await starStore.get(b.key, { type: "text" });
+        const count = raw ? parseInt(raw, 10) : 0;
+        if (count > 0) stars[b.key] = count;
+      } catch {}
+    }),
+    ...metricsBlobs.blobs.map(async (b) => {
+      try {
+        const raw = await metricsStore.get(b.key, { type: "text" });
+        if (raw) viewData[b.key] = JSON.parse(raw);
+      } catch {}
+    }),
+  ]);
+
+  const allKeys = new Set([...Object.keys(stars), ...Object.keys(viewData)]);
+
+  const entries: { key: string; stars: number; views: number; avgDuration: number; score: number }[] = [];
+  for (const key of allKeys) {
+    const s = stars[key] || 0;
+    const m = viewData[key] || { v: 0, d: 0 };
+    const avg = m.v > 0 ? m.d / m.v : 0;
+    const score = s * 10 + m.v + avg * 0.5;
+    if (score > 0) {
+      entries.push({ key, stars: s, views: m.v, avgDuration: avg, score });
+    }
   }
 
-  entries.sort((a, b) => b.count - a.count);
+  entries.sort((a, b) => b.score - a.score);
 
   const top = entries.slice(0, 200);
   const total = top.length;
@@ -40,7 +66,7 @@ export const GET: APIRoute = async ({ url, request, clientAddress }) => {
   const photos = pageEntries.map((entry) => ({
     key: entry.key,
     filename: filenameFromKey(entry.key),
-    stars: entry.count,
+    stars: entry.stars,
   }));
 
   return new Response(

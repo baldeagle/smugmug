@@ -8,12 +8,6 @@ export { renderers } from '../renderers.mjs';
 
 const MAX_UPLOAD_MB = 5;
 const MAX_DIMENSION = 4e3;
-function thumbUrl(filename) {
-  const dotIdx = filename.lastIndexOf(".");
-  const base = dotIdx > 0 ? filename.slice(0, dotIdx) : filename;
-  const ext = dotIdx > 0 ? filename.slice(dotIdx) : "";
-  return `/api/thumb/${encodeURIComponent(base + "_thumb" + ext)}`;
-}
 function resizeFile(file) {
   return new Promise((resolve) => {
     if (file.size <= MAX_UPLOAD_MB * 1024 * 1024) {
@@ -61,9 +55,17 @@ function Toast({ message, type }) {
 function AdminApp() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [password, setPassword] = useState("");
-  const [photos, setPhotos] = useState([]);
-  const [starCounts, setStarCounts] = useState({});
+  const [stats, setStats] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalViews, setTotalViews] = useState(0);
+  const [totalStars, setTotalStars] = useState(0);
+  const [avgViews, setAvgViews] = useState(0);
+  const [sort, setSort] = useState("score");
+  const [dir, setDir] = useState("desc");
   const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const fileInput = useRef(null);
@@ -71,25 +73,43 @@ function AdminApp() {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3e3);
   };
-  const checkAuth = useCallback(async () => {
+  const fetchStats = useCallback(async (p, s, d) => {
     try {
-      const [photoRes, starRes] = await Promise.all([
-        fetch("/api/photos"),
-        fetch("/api/stars")
-      ]);
-      if (photoRes.ok) {
-        const data = await photoRes.json();
-        setPhotos(data);
-      }
-      if (starRes.ok) {
-        setStarCounts(await starRes.json());
+      const res = await fetch(`/api/metrics?page=${p}&limit=50&sort=${s}&dir=${d}`);
+      if (res.ok) {
+        const data = await res.json();
+        setStats(data.photos || []);
+        setTotalPages(data.totalPages || 1);
+        setTotal(data.total || 0);
+        setTotalViews(data.totalViews || 0);
+        setTotalStars(data.totalStars || 0);
+        setAvgViews(data.avgViews || 0);
+      } else if (res.status === 401) {
+        setLoggedIn(false);
       }
     } catch {
     }
+    setLoading(false);
   }, []);
   useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
+    fetchStats(page, sort, dir);
+  }, [page, sort, dir, fetchStats]);
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const res = await fetch("/api/metrics?page=1&limit=1&sort=score&dir=desc");
+        if (res.status === 401) {
+          setLoggedIn(false);
+          setLoading(false);
+        } else if (res.ok) {
+          setLoggedIn(true);
+        }
+      } catch {
+        setLoading(false);
+      }
+    };
+    check();
+  }, []);
   const login = async (e) => {
     e.preventDefault();
     const res = await fetch("/api/login", {
@@ -100,7 +120,8 @@ function AdminApp() {
     if (res.ok) {
       setLoggedIn(true);
       setPassword("");
-      checkAuth();
+      setLoading(true);
+      fetchStats(1, sort, dir);
     } else {
       showToast("Invalid password", "error");
     }
@@ -119,14 +140,13 @@ function AdminApp() {
         const data = await res.json();
         const msgs = [];
         if (data.uploaded?.length) msgs.push(`Uploaded ${data.uploaded.length} photo(s)`);
-        if (data.errors?.length) msgs.push(`${data.errors.length} failed: ${data.errors.map((e) => e.error).join(", ")}`);
+        if (data.errors?.length) msgs.push(`${data.errors.length} failed`);
         if (msgs.length === 0) msgs.push("No files were uploaded");
         showToast(msgs.join(" | "), data.uploaded?.length ? "success" : "error");
-        checkAuth();
+        fetchStats(page, sort, dir);
       } else {
-        const text = await res.text();
-        showToast(`Upload failed (${res.status}): ${text}`, "error");
         if (res.status === 401) setLoggedIn(false);
+        else showToast("Upload failed", "error");
       }
     } catch {
       showToast("Upload failed", "error");
@@ -139,7 +159,7 @@ function AdminApp() {
     const res = await fetch(`/api/delete/${encodeURIComponent(key)}`, { method: "DELETE" });
     if (res.ok) {
       showToast("Photo deleted", "success");
-      checkAuth();
+      fetchStats(page, sort, dir);
     } else {
       showToast("Delete failed", "error");
     }
@@ -149,10 +169,24 @@ function AdminApp() {
     setDragOver(false);
     upload(e.dataTransfer.files);
   };
-  const formatSize = (bytes) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / 1048576).toFixed(1)} MB`;
+  const toggleSort = (field) => {
+    if (sort === field) {
+      setDir((d) => d === "asc" ? "desc" : "asc");
+    } else {
+      setSort(field);
+      setDir("desc");
+    }
+    setPage(1);
+  };
+  const sortIndicator = (field) => {
+    if (sort !== field) return " ↕";
+    return dir === "asc" ? " ▲" : " ▼";
+  };
+  const fmtDuration = (sec) => {
+    if (sec < 60) return `${sec.toFixed(1)}s`;
+    const m = Math.floor(sec / 60);
+    const s = Math.round(sec % 60);
+    return `${m}m ${s}s`;
   };
   if (!loggedIn) {
     return /* @__PURE__ */ jsxs("div", { className: "login-container", children: [
@@ -212,35 +246,103 @@ function AdminApp() {
         ]
       }
     ),
-    /* @__PURE__ */ jsxs("div", { className: "photo-grid-header", children: [
-      /* @__PURE__ */ jsxs("h2", { children: [
-        photos.length,
-        " photo",
-        photos.length !== 1 ? "s" : ""
+    /* @__PURE__ */ jsxs("div", { className: "stats-summary", children: [
+      /* @__PURE__ */ jsxs("div", { className: "stat-card", children: [
+        /* @__PURE__ */ jsx("span", { className: "stat-value", children: total.toLocaleString() }),
+        /* @__PURE__ */ jsx("span", { className: "stat-label", children: "Photos" })
       ] }),
-      photos.length > 0 && /* @__PURE__ */ jsx("button", { className: "btn-danger", onClick: async () => {
-        if (!confirm(`Delete ALL ${photos.length} photos? This cannot be undone.`)) return;
+      /* @__PURE__ */ jsxs("div", { className: "stat-card", children: [
+        /* @__PURE__ */ jsx("span", { className: "stat-value", children: totalViews.toLocaleString() }),
+        /* @__PURE__ */ jsx("span", { className: "stat-label", children: "Total Views" })
+      ] }),
+      /* @__PURE__ */ jsxs("div", { className: "stat-card", children: [
+        /* @__PURE__ */ jsx("span", { className: "stat-value", children: avgViews }),
+        /* @__PURE__ */ jsx("span", { className: "stat-label", children: "Avg Views" })
+      ] }),
+      /* @__PURE__ */ jsxs("div", { className: "stat-card", children: [
+        /* @__PURE__ */ jsx("span", { className: "stat-value", children: totalStars.toLocaleString() }),
+        /* @__PURE__ */ jsx("span", { className: "stat-label", children: "Total Stars" })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxs("div", { className: "photo-grid-header", children: [
+      /* @__PURE__ */ jsx("h2", { children: "Photo Metrics" }),
+      total > 0 && /* @__PURE__ */ jsx("button", { className: "btn-danger", onClick: async () => {
+        if (!confirm(`Delete ALL ${total} photos? This cannot be undone.`)) return;
         const res = await fetch("/api/delete/__all__", { method: "DELETE" });
         if (res.ok) {
           const data = await res.json();
           showToast(`Deleted ${data.deleted} photo(s)`, "success");
-          checkAuth();
+          fetchStats(1, sort, dir);
         } else {
           showToast("Delete all failed", "error");
         }
       }, children: "Delete All" })
     ] }),
-    photos.length === 0 ? /* @__PURE__ */ jsx("div", { className: "empty-state", children: /* @__PURE__ */ jsx("p", { children: "No photos yet. Upload some to get started!" }) }) : /* @__PURE__ */ jsx("div", { className: "admin-grid", children: photos.map((photo) => /* @__PURE__ */ jsxs("div", { className: "admin-photo-card", children: [
-      /* @__PURE__ */ jsx("div", { className: "admin-photo-thumb", children: /* @__PURE__ */ jsx("img", { src: thumbUrl(photo.filename), alt: photo.filename, loading: "lazy" }) }),
-      /* @__PURE__ */ jsxs("div", { className: "admin-photo-info", children: [
-        /* @__PURE__ */ jsx("span", { className: "photo-name", title: photo.filename, children: photo.filename }),
-        /* @__PURE__ */ jsxs("span", { className: "photo-meta", children: [
-          formatSize(photo.size),
-          starCounts[photo.key] ? ` · ${starCounts[photo.key]} stars` : ""
-        ] })
-      ] }),
-      /* @__PURE__ */ jsx("button", { className: "btn-danger btn-sm", onClick: () => deletePhoto(photo.key), children: "Delete" })
-    ] }, photo.key)) }),
+    loading ? /* @__PURE__ */ jsx("div", { className: "empty-state", children: /* @__PURE__ */ jsx("p", { children: "Loading metrics..." }) }) : stats.length === 0 ? /* @__PURE__ */ jsx("div", { className: "empty-state", children: /* @__PURE__ */ jsx("p", { children: "No photos yet. Upload some to get started!" }) }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsx("div", { className: "metrics-table-wrap", children: /* @__PURE__ */ jsxs("table", { className: "metrics-table", children: [
+        /* @__PURE__ */ jsx("thead", { children: /* @__PURE__ */ jsxs("tr", { children: [
+          /* @__PURE__ */ jsx("th", { className: "col-rank", children: "#" }),
+          /* @__PURE__ */ jsx("th", { className: "col-thumb", children: "Photo" }),
+          /* @__PURE__ */ jsxs("th", { className: "sortable", onClick: () => toggleSort("name"), children: [
+            "Filename",
+            sortIndicator("name")
+          ] }),
+          /* @__PURE__ */ jsxs("th", { className: "sortable", onClick: () => toggleSort("views"), children: [
+            "Views",
+            sortIndicator("views")
+          ] }),
+          /* @__PURE__ */ jsxs("th", { className: "sortable", onClick: () => toggleSort("duration"), children: [
+            "Avg Time",
+            sortIndicator("duration")
+          ] }),
+          /* @__PURE__ */ jsxs("th", { className: "sortable", onClick: () => toggleSort("stars"), children: [
+            "Stars",
+            sortIndicator("stars")
+          ] }),
+          /* @__PURE__ */ jsxs("th", { className: "sortable", onClick: () => toggleSort("score"), children: [
+            "Score",
+            sortIndicator("score")
+          ] }),
+          /* @__PURE__ */ jsx("th", { className: "col-actions", children: "Actions" })
+        ] }) }),
+        /* @__PURE__ */ jsx("tbody", { children: stats.map((photo, i) => /* @__PURE__ */ jsxs("tr", { children: [
+          /* @__PURE__ */ jsx("td", { className: "col-rank", children: (page - 1) * 50 + i + 1 }),
+          /* @__PURE__ */ jsx("td", { className: "col-thumb", children: /* @__PURE__ */ jsx("img", { src: photo.thumbUrl, alt: photo.filename, loading: "lazy" }) }),
+          /* @__PURE__ */ jsx("td", { className: "col-name", title: photo.filename, children: photo.filename }),
+          /* @__PURE__ */ jsx("td", { children: photo.views.toLocaleString() }),
+          /* @__PURE__ */ jsx("td", { children: fmtDuration(photo.avgDuration) }),
+          /* @__PURE__ */ jsx("td", { children: photo.stars > 0 ? photo.stars : "—" }),
+          /* @__PURE__ */ jsx("td", { children: photo.score }),
+          /* @__PURE__ */ jsx("td", { className: "col-actions", children: /* @__PURE__ */ jsx("button", { className: "btn-danger btn-sm", onClick: () => deletePhoto(photo.key), children: "Delete" }) })
+        ] }, photo.key)) })
+      ] }) }),
+      totalPages > 1 && /* @__PURE__ */ jsxs("div", { className: "pagination", children: [
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            className: "btn-ghost",
+            disabled: page <= 1,
+            onClick: () => setPage((p) => Math.max(1, p - 1)),
+            children: "Previous"
+          }
+        ),
+        /* @__PURE__ */ jsxs("span", { className: "page-info", children: [
+          "Page ",
+          page,
+          " of ",
+          totalPages
+        ] }),
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            className: "btn-ghost",
+            disabled: page >= totalPages,
+            onClick: () => setPage((p) => Math.min(totalPages, p + 1)),
+            children: "Next"
+          }
+        )
+      ] })
+    ] }),
     toast && /* @__PURE__ */ jsx(Toast, { message: toast.message, type: toast.type })
   ] });
 }
