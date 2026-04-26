@@ -2,7 +2,7 @@ import { c as createComponent, i as renderComponent, r as renderTemplate } from 
 import 'piccolore';
 import { $ as $$BaseLayout } from '../chunks/BaseLayout_BKQeLCa5.mjs';
 import { jsx, jsxs } from 'react/jsx-runtime';
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 /* empty css                                 */
 export { renderers } from '../renderers.mjs';
 
@@ -24,34 +24,77 @@ function GalleryApp() {
   const [showThumbs, setShowThumbs] = useState(true);
   const [autoPlay, setAutoPlay] = useState(false);
   const [swipeHint, setSwipeHint] = useState(true);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [fetchingMore, setFetchingMore] = useState(false);
+  const nextPageRef = useRef(2);
   const autoPlayRef = useRef(null);
   const slideRef = useRef(null);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
-  const loadPage = useCallback(async (pageNum) => {
-    setLoading(true);
+  const photosRef = useRef([]);
+  const hasMoreRef = useRef(false);
+  const fetchingMoreRef = useRef(false);
+  useEffect(() => {
+    photosRef.current = photos;
+  }, [photos]);
+  useEffect(() => {
+    hasMoreRef.current = hasMore;
+  }, [hasMore]);
+  useEffect(() => {
+    fetchingMoreRef.current = fetchingMore;
+  }, [fetchingMore]);
+  const fetchMore = useCallback(async () => {
+    if (fetchingMoreRef.current || !hasMoreRef.current) return;
+    setFetchingMore(true);
     const limit = getPageSize();
+    const page = nextPageRef.current;
     try {
       const [photoRes, starRes] = await Promise.all([
-        fetch(`/api/photos?page=${pageNum}&limit=${limit}`),
+        fetch(`/api/photos?page=${page}&limit=${limit}`),
         fetch("/api/stars")
       ]);
       const photoData = await photoRes.json();
       const starData = await starRes.json();
-      setPhotos(photoData?.photos || []);
-      setTotalPages(photoData?.totalPages || 1);
+      const newPhotos = photoData?.photos || [];
       setTotal(photoData?.total || 0);
-      setPage(photoData?.page || 1);
       setStars(starData);
-      setCurrent(0);
+      if (newPhotos.length > 0) {
+        setPhotos((prev) => {
+          const existing = new Set(prev.map((p) => p.key));
+          const deduped = newPhotos.filter((p) => !existing.has(p.key));
+          return [...prev, ...deduped];
+        });
+      }
+      nextPageRef.current = page + 1;
+      const totalPages = photoData?.totalPages || 1;
+      setHasMore(page < totalPages);
     } catch {
     }
-    setLoading(false);
+    setFetchingMore(false);
   }, []);
   useEffect(() => {
+    const loadInitial = async () => {
+      setLoading(true);
+      const limit = getPageSize();
+      try {
+        const [photoRes, starRes] = await Promise.all([
+          fetch(`/api/photos?page=1&limit=${limit}`),
+          fetch("/api/stars")
+        ]);
+        const photoData = await photoRes.json();
+        const starData = await starRes.json();
+        setPhotos(photoData?.photos || []);
+        setTotal(photoData?.total || 0);
+        setStars(starData);
+        setCurrent(0);
+        nextPageRef.current = 2;
+        const totalPages = photoData?.totalPages || 1;
+        setHasMore(1 < totalPages);
+      } catch {
+      }
+      setLoading(false);
+    };
     const stored = localStorage.getItem("myStars");
     if (stored) {
       try {
@@ -59,23 +102,42 @@ function GalleryApp() {
       } catch {
       }
     }
-    loadPage(1);
-  }, [loadPage]);
+    loadInitial();
+  }, []);
+  useEffect(() => {
+    if (hasMore && !fetchingMore && photos.length > 0 && current >= photos.length - 3) {
+      fetchMore();
+    }
+  }, [current, photos.length, hasMore, fetchingMore, fetchMore]);
   const goNext = useCallback(() => {
-    setCurrent((i) => (i + 1) % photos.length);
-  }, [photos.length]);
+    const p = photosRef.current;
+    if (p.length === 0) return;
+    if (current < p.length - 1) {
+      setCurrent(current + 1);
+    }
+  }, [current]);
   const goPrev = useCallback(() => {
-    setCurrent((i) => (i - 1 + photos.length) % photos.length);
-  }, [photos.length]);
+    if (current > 0) {
+      setCurrent(current - 1);
+    }
+  }, [current]);
   useEffect(() => {
     if (autoPlayRef.current) clearTimeout(autoPlayRef.current);
     if (autoPlay && photos.length > 1) {
-      autoPlayRef.current = setTimeout(goNext, 5e3);
+      autoPlayRef.current = setTimeout(() => {
+        if (current < photos.length - 1) {
+          setCurrent((c) => c + 1);
+        } else if (hasMore) {
+          fetchMore();
+        } else {
+          setAutoPlay(false);
+        }
+      }, 5e3);
     }
     return () => {
       if (autoPlayRef.current) clearTimeout(autoPlayRef.current);
     };
-  }, [autoPlay, current, photos.length, goNext]);
+  }, [autoPlay, current, photos.length, hasMore, fetchMore]);
   useEffect(() => {
     const handler = (e) => {
       if (e.key === "ArrowRight") goNext();
@@ -96,19 +158,8 @@ function GalleryApp() {
     const dy = e.changedTouches[0].clientY - touchStartY.current;
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
       if (swipeHint) setSwipeHint(false);
-      if (dx < 0) {
-        if (current === photos.length - 1 && page < totalPages) {
-          loadPage(page + 1);
-        } else {
-          goNext();
-        }
-      } else {
-        if (current === 0 && page > 1) {
-          loadPage(page - 1);
-        } else {
-          goPrev();
-        }
-      }
+      if (dx < 0) goNext();
+      else goPrev();
     }
   };
   const toggleStar = async (key) => {
@@ -158,12 +209,8 @@ function GalleryApp() {
     ] });
   }
   const photo = photos[current];
-  /* @__PURE__ */ new Set([
-    current,
-    (current + 1) % photos.length,
-    (current - 1 + photos.length) % photos.length
-  ]);
-  const globalIndex = (page - 1) * photos.length + current + 1;
+  const nextIdx = current + 1;
+  const prevIdx = current - 1;
   return /* @__PURE__ */ jsxs("div", { className: `gallery ${fullscreen ? "fullscreen" : ""}`, ref: slideRef, children: [
     /* @__PURE__ */ jsx("div", { className: "gallery-banner", children: "Star your favorite photos and the most popular ones will be uploaded in full resolution!" }),
     /* @__PURE__ */ jsxs(
@@ -182,16 +229,16 @@ function GalleryApp() {
             },
             photo.key
           ),
-          /* @__PURE__ */ jsx("button", { className: "slide-nav slide-prev", onClick: current === 0 && page > 1 ? () => loadPage(page - 1) : goPrev, "aria-label": "Previous", children: "‹" }),
-          /* @__PURE__ */ jsx("button", { className: "slide-nav slide-next", onClick: current === photos.length - 1 && page < totalPages ? () => loadPage(page + 1) : goNext, "aria-label": "Next", children: "›" }),
+          /* @__PURE__ */ jsx("button", { className: "slide-nav slide-prev", onClick: goPrev, "aria-label": "Previous", style: current === 0 ? { opacity: 0.3 } : void 0, children: "‹" }),
+          /* @__PURE__ */ jsx("button", { className: "slide-nav slide-next", onClick: goNext, "aria-label": "Next", style: current >= photos.length - 1 && !hasMore ? { opacity: 0.3 } : void 0, children: "›" }),
           photos.length > 1 && /* @__PURE__ */ jsxs("div", { style: { display: "none" }, children: [
-            /* @__PURE__ */ jsx("img", { src: `/api/photo/${encodeURIComponent(photos[(current + 1) % photos.length].key)}`, alt: "" }),
-            /* @__PURE__ */ jsx("img", { src: `/api/photo/${encodeURIComponent(photos[(current - 1 + photos.length) % photos.length].key)}`, alt: "" })
+            nextIdx < photos.length && /* @__PURE__ */ jsx("img", { src: `/api/photo/${encodeURIComponent(photos[nextIdx].key)}`, alt: "" }),
+            prevIdx >= 0 && /* @__PURE__ */ jsx("img", { src: `/api/photo/${encodeURIComponent(photos[prevIdx].key)}`, alt: "" })
           ] }),
           swipeHint && photos.length > 1 && /* @__PURE__ */ jsx("div", { className: "swipe-hint", onClick: () => setSwipeHint(false), children: "Swipe or use arrows to navigate" }),
           /* @__PURE__ */ jsxs("div", { className: "slide-controls", children: [
             /* @__PURE__ */ jsxs("span", { className: "slide-counter", children: [
-              globalIndex,
+              current + 1,
               " / ",
               total
             ] }),
@@ -217,44 +264,21 @@ function GalleryApp() {
         ]
       }
     ),
-    /* @__PURE__ */ jsxs("div", { className: "pagination", children: [
-      /* @__PURE__ */ jsx(
+    showThumbs && photos.length > 1 && /* @__PURE__ */ jsxs("div", { className: "thumb-strip", children: [
+      photos.map((p, i) => /* @__PURE__ */ jsxs(
         "button",
         {
-          className: "btn-ghost",
-          disabled: page <= 1,
-          onClick: () => loadPage(page - 1),
-          children: "‹ Prev"
-        }
-      ),
-      /* @__PURE__ */ jsxs("span", { className: "page-info", children: [
-        "Page ",
-        page,
-        " of ",
-        totalPages
-      ] }),
-      /* @__PURE__ */ jsx(
-        "button",
-        {
-          className: "btn-ghost",
-          disabled: page >= totalPages,
-          onClick: () => loadPage(page + 1),
-          children: "Next ›"
-        }
-      )
-    ] }),
-    showThumbs && photos.length > 1 && /* @__PURE__ */ jsx("div", { className: "thumb-strip", children: photos.map((p, i) => /* @__PURE__ */ jsxs(
-      "button",
-      {
-        className: `thumb ${i === current ? "active" : ""}`,
-        onClick: () => setCurrent(i),
-        children: [
-          /* @__PURE__ */ jsx("img", { src: thumbUrl(p.filename), alt: p.filename, loading: "lazy" }),
-          stars[p.key] ? /* @__PURE__ */ jsx("span", { className: "thumb-star", children: stars[p.key] }) : null
-        ]
-      },
-      p.key
-    )) })
+          className: `thumb ${i === current ? "active" : ""}`,
+          onClick: () => setCurrent(i),
+          children: [
+            /* @__PURE__ */ jsx("img", { src: thumbUrl(p.filename), alt: p.filename, loading: "lazy" }),
+            stars[p.key] ? /* @__PURE__ */ jsx("span", { className: "thumb-star", children: stars[p.key] }) : null
+          ]
+        },
+        p.key
+      )),
+      fetchingMore && /* @__PURE__ */ jsx("div", { className: "thumb-loading", children: "..." })
+    ] })
   ] });
 }
 

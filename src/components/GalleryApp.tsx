@@ -3,9 +3,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 interface Photo {
   key: string;
   filename: string;
-  contentType: string;
-  size: number;
-  uploadDate: string;
 }
 
 function getPageSize() {
@@ -28,59 +25,117 @@ export default function GalleryApp() {
   const [showThumbs, setShowThumbs] = useState(true);
   const [autoPlay, setAutoPlay] = useState(false);
   const [swipeHint, setSwipeHint] = useState(true);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [fetchingMore, setFetchingMore] = useState(false);
+  const nextPageRef = useRef(2);
   const autoPlayRef = useRef<ReturnType<typeof setTimeout>>(null);
   const slideRef = useRef<HTMLDivElement>(null);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
+  const photosRef = useRef<Photo[]>([]);
+  const hasMoreRef = useRef(false);
+  const fetchingMoreRef = useRef(false);
 
-  const loadPage = useCallback(async (pageNum: number) => {
-    setLoading(true);
+  useEffect(() => { photosRef.current = photos; }, [photos]);
+  useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
+  useEffect(() => { fetchingMoreRef.current = fetchingMore; }, [fetchingMore]);
+
+  const fetchMore = useCallback(async () => {
+    if (fetchingMoreRef.current || !hasMoreRef.current) return;
+    setFetchingMore(true);
     const limit = getPageSize();
+    const page = nextPageRef.current;
     try {
       const [photoRes, starRes] = await Promise.all([
-        fetch(`/api/photos?page=${pageNum}&limit=${limit}`),
+        fetch(`/api/photos?page=${page}&limit=${limit}`),
         fetch("/api/stars"),
       ]);
       const photoData = await photoRes.json();
       const starData = await starRes.json();
-      setPhotos(photoData?.photos || []);
-      setTotalPages(photoData?.totalPages || 1);
+      const newPhotos = photoData?.photos || [];
       setTotal(photoData?.total || 0);
-      setPage(photoData?.page || 1);
       setStars(starData);
-      setCurrent(0);
+      if (newPhotos.length > 0) {
+        setPhotos((prev) => {
+          const existing = new Set(prev.map((p) => p.key));
+          const deduped = newPhotos.filter((p: Photo) => !existing.has(p.key));
+          return [...prev, ...deduped];
+        });
+      }
+      nextPageRef.current = page + 1;
+      const totalPages = photoData?.totalPages || 1;
+      setHasMore(page < totalPages);
     } catch {}
-    setLoading(false);
+    setFetchingMore(false);
   }, []);
 
   useEffect(() => {
+    const loadInitial = async () => {
+      setLoading(true);
+      const limit = getPageSize();
+      try {
+        const [photoRes, starRes] = await Promise.all([
+          fetch(`/api/photos?page=1&limit=${limit}`),
+          fetch("/api/stars"),
+        ]);
+        const photoData = await photoRes.json();
+        const starData = await starRes.json();
+        setPhotos(photoData?.photos || []);
+        setTotal(photoData?.total || 0);
+        setStars(starData);
+        setCurrent(0);
+        nextPageRef.current = 2;
+        const totalPages = photoData?.totalPages || 1;
+        setHasMore(1 < totalPages);
+      } catch {}
+      setLoading(false);
+    };
+
     const stored = localStorage.getItem("myStars");
     if (stored) {
       try { setMyStars(new Set(JSON.parse(stored))); } catch {}
     }
-    loadPage(1);
-  }, [loadPage]);
+    loadInitial();
+  }, []);
+
+  useEffect(() => {
+    if (hasMore && !fetchingMore && photos.length > 0 && current >= photos.length - 3) {
+      fetchMore();
+    }
+  }, [current, photos.length, hasMore, fetchingMore, fetchMore]);
 
   const goNext = useCallback(() => {
-    setCurrent((i) => (i + 1) % photos.length);
-  }, [photos.length]);
+    const p = photosRef.current;
+    if (p.length === 0) return;
+    if (current < p.length - 1) {
+      setCurrent(current + 1);
+    }
+  }, [current]);
 
   const goPrev = useCallback(() => {
-    setCurrent((i) => (i - 1 + photos.length) % photos.length);
-  }, [photos.length]);
+    if (current > 0) {
+      setCurrent(current - 1);
+    }
+  }, [current]);
 
   useEffect(() => {
     if (autoPlayRef.current) clearTimeout(autoPlayRef.current);
     if (autoPlay && photos.length > 1) {
-      autoPlayRef.current = setTimeout(goNext, 5000);
+      autoPlayRef.current = setTimeout(() => {
+        if (current < photos.length - 1) {
+          setCurrent((c) => c + 1);
+        } else if (hasMore) {
+          fetchMore();
+        } else {
+          setAutoPlay(false);
+        }
+      }, 5000);
     }
     return () => {
       if (autoPlayRef.current) clearTimeout(autoPlayRef.current);
     };
-  }, [autoPlay, current, photos.length, goNext]);
+  }, [autoPlay, current, photos.length, hasMore, fetchMore]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -104,19 +159,8 @@ export default function GalleryApp() {
     const dy = e.changedTouches[0].clientY - touchStartY.current;
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
       if (swipeHint) setSwipeHint(false);
-      if (dx < 0) {
-        if (current === photos.length - 1 && page < totalPages) {
-          loadPage(page + 1);
-        } else {
-          goNext();
-        }
-      } else {
-        if (current === 0 && page > 1) {
-          loadPage(page - 1);
-        } else {
-          goPrev();
-        }
-      }
+      if (dx < 0) goNext();
+      else goPrev();
     }
   };
 
@@ -169,12 +213,8 @@ export default function GalleryApp() {
   }
 
   const photo = photos[current];
-  const preload = new Set([
-    current,
-    (current + 1) % photos.length,
-    (current - 1 + photos.length) % photos.length,
-  ]);
-  const globalIndex = (page - 1) * photos.length + current + 1;
+  const nextIdx = current + 1;
+  const prevIdx = current - 1;
 
   return (
     <div className={`gallery ${fullscreen ? "fullscreen" : ""}`} ref={slideRef}>
@@ -194,17 +234,21 @@ export default function GalleryApp() {
           key={photo.key}
         />
 
-        <button className="slide-nav slide-prev" onClick={current === 0 && page > 1 ? () => loadPage(page - 1) : goPrev} aria-label="Previous">
+        <button className="slide-nav slide-prev" onClick={goPrev} aria-label="Previous" style={current === 0 ? { opacity: 0.3 } : undefined}>
           &#8249;
         </button>
-        <button className="slide-nav slide-next" onClick={current === photos.length - 1 && page < totalPages ? () => loadPage(page + 1) : goNext} aria-label="Next">
+        <button className="slide-nav slide-next" onClick={goNext} aria-label="Next" style={current >= photos.length - 1 && !hasMore ? { opacity: 0.3 } : undefined}>
           &#8250;
         </button>
 
         {photos.length > 1 && (
           <div style={{ display: "none" }}>
-            <img src={`/api/photo/${encodeURIComponent(photos[(current + 1) % photos.length].key)}`} alt="" />
-            <img src={`/api/photo/${encodeURIComponent(photos[(current - 1 + photos.length) % photos.length].key)}`} alt="" />
+            {nextIdx < photos.length && (
+              <img src={`/api/photo/${encodeURIComponent(photos[nextIdx].key)}`} alt="" />
+            )}
+            {prevIdx >= 0 && (
+              <img src={`/api/photo/${encodeURIComponent(photos[prevIdx].key)}`} alt="" />
+            )}
           </div>
         )}
 
@@ -215,7 +259,7 @@ export default function GalleryApp() {
         )}
 
         <div className="slide-controls">
-          <span className="slide-counter">{globalIndex} / {total}</span>
+          <span className="slide-counter">{current + 1} / {total}</span>
           <span className="slide-filename">{photo.filename}</span>
           <div className="slide-actions">
             <button
@@ -239,26 +283,6 @@ export default function GalleryApp() {
         </div>
       </div>
 
-      <div className="pagination">
-        <button
-          className="btn-ghost"
-          disabled={page <= 1}
-          onClick={() => loadPage(page - 1)}
-        >
-          &#8249; Prev
-        </button>
-        <span className="page-info">
-          Page {page} of {totalPages}
-        </span>
-        <button
-          className="btn-ghost"
-          disabled={page >= totalPages}
-          onClick={() => loadPage(page + 1)}
-        >
-          Next &#8250;
-        </button>
-      </div>
-
       {showThumbs && photos.length > 1 && (
         <div className="thumb-strip">
           {photos.map((p, i) => (
@@ -271,6 +295,9 @@ export default function GalleryApp() {
               {stars[p.key] ? <span className="thumb-star">{stars[p.key]}</span> : null}
             </button>
           ))}
+          {fetchingMore && (
+            <div className="thumb-loading">...</div>
+          )}
         </div>
       )}
     </div>
