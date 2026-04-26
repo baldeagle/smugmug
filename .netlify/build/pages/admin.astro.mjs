@@ -8,6 +8,10 @@ export { renderers } from '../renderers.mjs';
 
 const MAX_UPLOAD_MB = 5;
 const MAX_DIMENSION = 4e3;
+function thumbUrl(filename) {
+  const thumbName = filename.replace("_sized", "_thumb");
+  return `/api/thumb/${encodeURIComponent(thumbName)}`;
+}
 function resizeFile(file) {
   return new Promise((resolve) => {
     if (file.size <= MAX_UPLOAD_MB * 1024 * 1024) {
@@ -225,7 +229,7 @@ function AdminApp() {
       }, children: "Delete All" })
     ] }),
     photos.length === 0 ? /* @__PURE__ */ jsx("div", { className: "empty-state", children: /* @__PURE__ */ jsx("p", { children: "No photos yet. Upload some to get started!" }) }) : /* @__PURE__ */ jsx("div", { className: "admin-grid", children: photos.map((photo) => /* @__PURE__ */ jsxs("div", { className: "admin-photo-card", children: [
-      /* @__PURE__ */ jsx("div", { className: "admin-photo-thumb", children: /* @__PURE__ */ jsx("img", { src: `/api/photo/${encodeURIComponent(photo.key)}`, alt: photo.filename, loading: "lazy" }) }),
+      /* @__PURE__ */ jsx("div", { className: "admin-photo-thumb", children: /* @__PURE__ */ jsx("img", { src: thumbUrl(photo.filename), alt: photo.filename, loading: "lazy" }) }),
       /* @__PURE__ */ jsxs("div", { className: "admin-photo-info", children: [
         /* @__PURE__ */ jsx("span", { className: "photo-name", title: photo.filename, children: photo.filename }),
         /* @__PURE__ */ jsxs("span", { className: "photo-meta", children: [

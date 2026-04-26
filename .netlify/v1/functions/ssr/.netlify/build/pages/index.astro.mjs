@@ -10,6 +10,10 @@ function getPageSize() {
   if (typeof window === "undefined") return 20;
   return window.innerWidth <= 640 ? 5 : 20;
 }
+function thumbUrl(filename) {
+  const thumbName = filename.replace("_sized", "_thumb");
+  return `/api/thumb/${encodeURIComponent(thumbName)}`;
+}
 function GalleryApp() {
   const [photos, setPhotos] = useState([]);
   const [stars, setStars] = useState({});
@@ -154,7 +158,7 @@ function GalleryApp() {
     ] });
   }
   const photo = photos[current];
-  const preload = /* @__PURE__ */ new Set([
+  /* @__PURE__ */ new Set([
     current,
     (current + 1) % photos.length,
     (current - 1 + photos.length) % photos.length
@@ -180,6 +184,10 @@ function GalleryApp() {
           ),
           /* @__PURE__ */ jsx("button", { className: "slide-nav slide-prev", onClick: current === 0 && page > 1 ? () => loadPage(page - 1) : goPrev, "aria-label": "Previous", children: "‹" }),
           /* @__PURE__ */ jsx("button", { className: "slide-nav slide-next", onClick: current === photos.length - 1 && page < totalPages ? () => loadPage(page + 1) : goNext, "aria-label": "Next", children: "›" }),
+          photos.length > 1 && /* @__PURE__ */ jsxs("div", { style: { display: "none" }, children: [
+            /* @__PURE__ */ jsx("img", { src: `/api/photo/${encodeURIComponent(photos[(current + 1) % photos.length].key)}`, alt: "" }),
+            /* @__PURE__ */ jsx("img", { src: `/api/photo/${encodeURIComponent(photos[(current - 1 + photos.length) % photos.length].key)}`, alt: "" })
+          ] }),
           swipeHint && photos.length > 1 && /* @__PURE__ */ jsx("div", { className: "swipe-hint", onClick: () => setSwipeHint(false), children: "Swipe or use arrows to navigate" }),
           /* @__PURE__ */ jsxs("div", { className: "slide-controls", children: [
             /* @__PURE__ */ jsxs("span", { className: "slide-counter", children: [
@@ -241,7 +249,7 @@ function GalleryApp() {
         className: `thumb ${i === current ? "active" : ""}`,
         onClick: () => setCurrent(i),
         children: [
-          preload.has(i) ? /* @__PURE__ */ jsx("img", { src: `/api/photo/${encodeURIComponent(p.key)}`, alt: p.filename, loading: "lazy" }) : /* @__PURE__ */ jsx("img", { "data-src": `/api/photo/${encodeURIComponent(p.key)}`, alt: p.filename, loading: "lazy" }),
+          /* @__PURE__ */ jsx("img", { src: thumbUrl(p.filename), alt: p.filename, loading: "lazy" }),
           stars[p.key] ? /* @__PURE__ */ jsx("span", { className: "thumb-star", children: stars[p.key] }) : null
         ]
       },

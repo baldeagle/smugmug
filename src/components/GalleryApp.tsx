@@ -13,6 +13,11 @@ function getPageSize() {
   return window.innerWidth <= 640 ? 5 : 20;
 }
 
+function thumbUrl(filename: string): string {
+  const thumbName = filename.replace("_sized", "_thumb");
+  return `/api/thumb/${encodeURIComponent(thumbName)}`;
+}
+
 export default function GalleryApp() {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [stars, setStars] = useState<Record<string, number>>({});
@@ -196,6 +201,13 @@ export default function GalleryApp() {
           &#8250;
         </button>
 
+        {photos.length > 1 && (
+          <div style={{ display: "none" }}>
+            <img src={`/api/photo/${encodeURIComponent(photos[(current + 1) % photos.length].key)}`} alt="" />
+            <img src={`/api/photo/${encodeURIComponent(photos[(current - 1 + photos.length) % photos.length].key)}`} alt="" />
+          </div>
+        )}
+
         {swipeHint && photos.length > 1 && (
           <div className="swipe-hint" onClick={() => setSwipeHint(false)}>
             Swipe or use arrows to navigate
@@ -255,11 +267,7 @@ export default function GalleryApp() {
               className={`thumb ${i === current ? "active" : ""}`}
               onClick={() => setCurrent(i)}
             >
-              {preload.has(i) ? (
-                <img src={`/api/photo/${encodeURIComponent(p.key)}`} alt={p.filename} loading="lazy" />
-              ) : (
-                <img data-src={`/api/photo/${encodeURIComponent(p.key)}`} alt={p.filename} loading="lazy" />
-              )}
+              <img src={thumbUrl(p.filename)} alt={p.filename} loading="lazy" />
               {stars[p.key] ? <span className="thumb-star">{stars[p.key]}</span> : null}
             </button>
           ))}

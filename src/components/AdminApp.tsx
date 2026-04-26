@@ -3,6 +3,11 @@ import { useState, useEffect, useCallback, useRef } from "react";
 const MAX_UPLOAD_MB = 5;
 const MAX_DIMENSION = 4000;
 
+function thumbUrl(filename: string): string {
+  const thumbName = filename.replace("_sized", "_thumb");
+  return `/api/thumb/${encodeURIComponent(thumbName)}`;
+}
+
 function resizeFile(file: File): Promise<File> {
   return new Promise((resolve) => {
     if (file.size <= MAX_UPLOAD_MB * 1024 * 1024) {
@@ -237,7 +242,7 @@ export default function AdminApp() {
           {photos.map((photo) => (
             <div key={photo.key} className="admin-photo-card">
               <div className="admin-photo-thumb">
-                <img src={`/api/photo/${encodeURIComponent(photo.key)}`} alt={photo.filename} loading="lazy" />
+                <img src={thumbUrl(photo.filename)} alt={photo.filename} loading="lazy" />
               </div>
               <div className="admin-photo-info">
                 <span className="photo-name" title={photo.filename}>{photo.filename}</span>

@@ -1,6 +1,6 @@
 import { renderers } from './renderers.mjs';
 import { s as serverEntrypointModule } from './chunks/_@astrojs-ssr-adapter_CvSoi7hX.mjs';
-import { manifest } from './manifest_C4uV-wSu.mjs';
+import { manifest } from './manifest_Dcjw6Lcc.mjs';
 import { createExports } from '@astrojs/netlify/ssr-function.js';
 
 const serverIslandMap = new Map();;
@@ -13,8 +13,9 @@ const _page4 = () => import('./pages/api/photo/_key_.astro.mjs');
 const _page5 = () => import('./pages/api/photos.astro.mjs');
 const _page6 = () => import('./pages/api/star/_key_.astro.mjs');
 const _page7 = () => import('./pages/api/stars.astro.mjs');
-const _page8 = () => import('./pages/api/upload.astro.mjs');
-const _page9 = () => import('./pages/index.astro.mjs');
+const _page8 = () => import('./pages/api/thumb/_key_.astro.mjs');
+const _page9 = () => import('./pages/api/upload.astro.mjs');
+const _page10 = () => import('./pages/index.astro.mjs');
 const pageMap = new Map([
     ["node_modules/astro/dist/assets/endpoint/generic.js", _page0],
     ["src/pages/admin.astro", _page1],
@@ -24,8 +25,9 @@ const pageMap = new Map([
     ["src/pages/api/photos.ts", _page5],
     ["src/pages/api/star/[key].ts", _page6],
     ["src/pages/api/stars.ts", _page7],
-    ["src/pages/api/upload.ts", _page8],
-    ["src/pages/index.astro", _page9]
+    ["src/pages/api/thumb/[key].ts", _page8],
+    ["src/pages/api/upload.ts", _page9],
+    ["src/pages/index.astro", _page10]
 ]);
 
 const _manifest = Object.assign(manifest, {
@@ -36,7 +38,7 @@ const _manifest = Object.assign(manifest, {
     middleware: () => import('./_noop-middleware.mjs')
 });
 const _args = {
-    "middlewareSecret": "9cccac24-a9b8-48b3-bd81-dca4fa5f1e76"
+    "middlewareSecret": "ffe74a67-d1c0-4588-a4ad-a494b4dc882d"
 };
 const _exports = createExports(_manifest, _args);
 const __astrojsSsrVirtualEntry = _exports.default;
