@@ -41,10 +41,10 @@ export default function GalleryApp() {
       ]);
       const photoData = await photoRes.json();
       const starData = await starRes.json();
-      setPhotos(photoData.photos);
-      setTotalPages(photoData.totalPages);
-      setTotal(photoData.total);
-      setPage(photoData.page);
+      setPhotos(photoData?.photos || []);
+      setTotalPages(photoData?.totalPages || 1);
+      setTotal(photoData?.total || 0);
+      setPage(photoData?.page || 1);
       setStars(starData);
       setCurrent(0);
     } catch {}
