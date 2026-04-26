@@ -25,7 +25,11 @@ function thumbUrl(filename: string): string {
   return `/api/thumb/${encodeURIComponent(base + "_thumb" + ext)}`;
 }
 
-export default function GalleryApp() {
+interface Props {
+  initialPhotoKey?: string;
+}
+
+export default function GalleryApp({ initialPhotoKey }: Props) {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [stars, setStars] = useState<Record<string, number>>({});
   const [myStars, setMyStars] = useState<Set<string>>(new Set());
@@ -39,6 +43,7 @@ export default function GalleryApp() {
   const [hasMore, setHasMore] = useState(false);
   const [fetchingMore, setFetchingMore] = useState(false);
   const [globalOffset, setGlobalOffset] = useState(0);
+  const [shareToast, setShareToast] = useState(false);
   const nextPageRef = useRef(2);
   const autoPlayRef = useRef<ReturnType<typeof setTimeout>>(null);
   const slideRef = useRef<HTMLDivElement>(null);
@@ -47,6 +52,7 @@ export default function GalleryApp() {
   const photosRef = useRef<Photo[]>([]);
   const hasMoreRef = useRef(false);
   const fetchingMoreRef = useRef(false);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   useEffect(() => { photosRef.current = photos; }, [photos]);
   useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
@@ -81,8 +87,7 @@ export default function GalleryApp() {
         setPhotos((prev) => {
           const existing = new Set(prev.map((p) => p.key));
           const deduped = newPhotos.filter((p: Photo) => !existing.has(p.key));
-          const merged = [...prev, ...deduped];
-          return merged;
+          return [...prev, ...deduped];
         });
       }
       nextPageRef.current = page + 1;
@@ -91,22 +96,51 @@ export default function GalleryApp() {
     } catch {}
     setFetchingMore(false);
     trimPhotos(photosRef.current.length > 0 ? photosRef.current.length - 1 : 0);
-  }, []);
+  }, [trimPhotos]);
 
   useEffect(() => {
     const loadInitial = async () => {
       setLoading(true);
       const limit = getPageSize();
+
+      const stored = localStorage.getItem("myStars");
+      if (stored) {
+        try { setMyStars(new Set(JSON.parse(stored))); } catch {}
+      }
+
+      const starRes = await fetch("/api/stars");
+      const starData = await starRes.json();
+      setStars(starData);
+
+      const photoKey = initialPhotoKey || new URLSearchParams(window.location.search).get("photo");
+      if (photoKey) {
+        try {
+          const pageRes = await fetch(`/api/photo-page?key=${encodeURIComponent(initialPhotoKey)}`);
+          if (pageRes.ok) {
+            const { index } = await pageRes.json();
+            const targetPage = Math.floor(index / limit) + 1;
+            const photoRes = await fetch(`/api/photos?page=${targetPage}&limit=${limit}`);
+            const photoData = await photoRes.json();
+            const pagePhotos: Photo[] = photoData?.photos || [];
+            setTotal(photoData?.total || 0);
+            setPhotos(pagePhotos);
+            const idxInPage = index - (targetPage - 1) * limit;
+            setCurrent(idxInPage);
+            setGlobalOffset((targetPage - 1) * limit);
+            nextPageRef.current = targetPage + 1;
+            const totalPages = photoData?.totalPages || 1;
+            setHasMore(targetPage < totalPages);
+            setLoading(false);
+            return;
+          }
+        } catch {}
+      }
+
       try {
-        const [photoRes, starRes] = await Promise.all([
-          fetch(`/api/photos?page=1&limit=${limit}`),
-          fetch("/api/stars"),
-        ]);
+        const photoRes = await fetch(`/api/photos?page=1&limit=${limit}`);
         const photoData = await photoRes.json();
-        const starData = await starRes.json();
         setPhotos(photoData?.photos || []);
         setTotal(photoData?.total || 0);
-        setStars(starData);
         setCurrent(0);
         nextPageRef.current = 2;
         const totalPages = photoData?.totalPages || 1;
@@ -115,18 +149,26 @@ export default function GalleryApp() {
       setLoading(false);
     };
 
-    const stored = localStorage.getItem("myStars");
-    if (stored) {
-      try { setMyStars(new Set(JSON.parse(stored))); } catch {}
-    }
     loadInitial();
-  }, []);
+  }, [initialPhotoKey]);
 
   useEffect(() => {
     if (hasMore && !fetchingMore && photos.length > 0 && current >= photos.length - 3) {
       fetchMore();
     }
   }, [current, photos.length, hasMore, fetchingMore, fetchMore]);
+
+  useEffect(() => {
+    if (photos.length === 0 || current >= photos.length) return;
+    const photo = photos[current];
+    if (!photo) return;
+    const shareUrl = `${window.location.origin}/photo/${encodeURIComponent(photo.key)}`;
+    if (window.location.pathname.startsWith("/photo/")) {
+      window.history.replaceState(null, "", `/photo/${encodeURIComponent(photo.key)}`);
+    } else {
+      window.history.replaceState(null, "", shareUrl);
+    }
+  }, [current, photos]);
 
   const goNext = useCallback(() => {
     const p = photosRef.current;
@@ -222,6 +264,24 @@ export default function GalleryApp() {
     setFullscreen(!fullscreen);
   };
 
+  const sharePhoto = async () => {
+    if (photos.length === 0) return;
+    const photo = photos[current];
+    const url = `${window.location.origin}/photo/${encodeURIComponent(photo.key)}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ url });
+        return;
+      } catch {}
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {}
+    setShareToast(true);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setShareToast(false), 2000);
+  };
+
   if (loading) {
     return <div className="gallery-loading">Loading gallery...</div>;
   }
@@ -236,6 +296,7 @@ export default function GalleryApp() {
   }
 
   const photo = photos[current];
+  if (!photo) return null;
   const nextIdx = current + 1;
   const prevIdx = current - 1;
 
@@ -293,6 +354,9 @@ export default function GalleryApp() {
               {myStars.has(photo.key) ? "\u2605" : "\u2606"}
               {stars[photo.key] ? <span className="star-count">{stars[photo.key]}</span> : null}
             </button>
+            <button className="btn-ghost btn-icon" onClick={sharePhoto} title="Share">
+              {"\u{1F517}"}
+            </button>
             <button className="btn-ghost btn-icon" onClick={() => setAutoPlay(!autoPlay)} title={autoPlay ? "Pause" : "Auto-play"}>
               {autoPlay ? "\u23F8" : "\u25B6"}
             </button>
@@ -323,6 +387,8 @@ export default function GalleryApp() {
           )}
         </div>
       )}
+
+      {shareToast && <div className="share-toast">Link copied!</div>}
     </div>
   );
 }
