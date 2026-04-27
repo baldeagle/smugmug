@@ -44,21 +44,18 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   const duration = Math.max(0, Math.min(body.duration, 90));
   const store = getStore("metrics");
 
-  let views = 0;
-  let totalDuration = 0;
+  let data: Record<string, { v: number; d: number }> = {};
   try {
-    const raw = await store.get(key, { type: "text" });
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      views = parsed.v || 0;
-      totalDuration = parsed.d || 0;
-    }
+    const raw = await store.get("__aggregate__", { type: "text" });
+    if (raw) data = JSON.parse(raw);
   } catch {}
 
-  views += 1;
-  totalDuration += duration;
+  const existing = data[key] || { v: 0, d: 0 };
+  existing.v += 1;
+  existing.d = Math.round((existing.d + duration) * 100) / 100;
+  data[key] = existing;
 
-  await store.set(key, JSON.stringify({ v: views, d: Math.round(totalDuration * 100) / 100 }));
+  await store.set("__aggregate__", JSON.stringify(data));
 
   return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
 };
@@ -95,14 +92,9 @@ export const GET: APIRoute = async ({ request, cookies, url, clientAddress }) =>
   const allKeys: string[] = JSON.parse(cached);
 
   let starsBlobs: { key: string }[] = [];
-  let metricsBlobs: { key: string }[] = [];
   try {
-    const [sb, mb] = await Promise.all([
-      starsStore.list(),
-      metricsStore.list(),
-    ]);
-    starsBlobs = sb.blobs;
-    metricsBlobs = mb.blobs;
+    const { blobs } = await starsStore.list();
+    starsBlobs = blobs;
   } catch {}
 
   const stars: Record<string, number> = {};
@@ -114,12 +106,15 @@ export const GET: APIRoute = async ({ request, cookies, url, clientAddress }) =>
   }
 
   const metrics: Record<string, { v: number; d: number }> = {};
-  for (const b of metricsBlobs) {
-    try {
-      const raw = await metricsStore.get(b.key, { type: "text" });
-      if (raw) metrics[b.key] = JSON.parse(raw);
-    } catch {}
-  }
+  try {
+    const raw = await metricsStore.get("__aggregate__", { type: "text" });
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      for (const [k, v] of Object.entries(parsed)) {
+        metrics[k] = v as { v: number; d: number };
+      }
+    }
+  } catch {}
 
   const rows = allKeys.map((key) => {
     const s = stars[key] || 0;

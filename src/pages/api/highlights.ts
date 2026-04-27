@@ -18,9 +18,8 @@ export const GET: APIRoute = async ({ url, request, clientAddress }) => {
   const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 20));
 
   try {
-    var [starStore, metricsStore] = [getStore("stars"), getStore("metrics")];
+    var starStore = getStore("stars");
     var { blobs: starBlobs } = await starStore.list();
-    var { blobs: metricsBlobs } = await metricsStore.list();
   } catch {
     return new Response(JSON.stringify({ photos: [], page: 1, totalPages: 1, total: 0 }), {
       headers: { "Content-Type": "application/json", ...ROBOTS_HEADERS },
@@ -37,12 +36,16 @@ export const GET: APIRoute = async ({ url, request, clientAddress }) => {
   }
 
   const viewData: Record<string, { v: number; d: number }> = {};
-  for (const b of metricsBlobs) {
-    try {
-      const raw = await metricsStore.get(b.key, { type: "text" });
-      if (raw) viewData[b.key] = JSON.parse(raw);
-    } catch {}
-  }
+  try {
+    const metricsStore = getStore("metrics");
+    const raw = await metricsStore.get("__aggregate__", { type: "text" });
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      for (const [k, v] of Object.entries(parsed)) {
+        viewData[k] = v as { v: number; d: number };
+      }
+    }
+  } catch {}
 
   const allKeys = new Set([...Object.keys(stars), ...Object.keys(viewData)]);
 
