@@ -17,30 +17,32 @@ export const GET: APIRoute = async ({ url, request, clientAddress }) => {
   const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
   const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 20));
 
-  const [starStore, metricsStore] = [getStore("stars"), getStore("metrics")];
-  const [starBlobs, metricsBlobs] = await Promise.all([
-    starStore.list(),
-    metricsStore.list(),
-  ]);
+  try {
+    var [starStore, metricsStore] = [getStore("stars"), getStore("metrics")];
+    var { blobs: starBlobs } = await starStore.list();
+    var { blobs: metricsBlobs } = await metricsStore.list();
+  } catch {
+    return new Response(JSON.stringify({ photos: [], page: 1, totalPages: 1, total: 0 }), {
+      headers: { "Content-Type": "application/json", ...ROBOTS_HEADERS },
+    });
+  }
 
   const stars: Record<string, number> = {};
-  const viewData: Record<string, { v: number; d: number }> = {};
+  for (const b of starBlobs) {
+    try {
+      const raw = await starStore.get(b.key, { type: "text" });
+      const count = raw ? parseInt(raw, 10) : 0;
+      if (count > 0) stars[b.key] = count;
+    } catch {}
+  }
 
-  await Promise.all([
-    ...starBlobs.blobs.map(async (b) => {
-      try {
-        const raw = await starStore.get(b.key, { type: "text" });
-        const count = raw ? parseInt(raw, 10) : 0;
-        if (count > 0) stars[b.key] = count;
-      } catch {}
-    }),
-    ...metricsBlobs.blobs.map(async (b) => {
-      try {
-        const raw = await metricsStore.get(b.key, { type: "text" });
-        if (raw) viewData[b.key] = JSON.parse(raw);
-      } catch {}
-    }),
-  ]);
+  const viewData: Record<string, { v: number; d: number }> = {};
+  for (const b of metricsBlobs) {
+    try {
+      const raw = await metricsStore.get(b.key, { type: "text" });
+      if (raw) viewData[b.key] = JSON.parse(raw);
+    } catch {}
+  }
 
   const allKeys = new Set([...Object.keys(stars), ...Object.keys(viewData)]);
 

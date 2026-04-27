@@ -111,13 +111,11 @@ export default function AdminApp() {
         const res = await fetch("/api/metrics?page=1&limit=1&sort=score&dir=desc");
         if (res.status === 401) {
           setLoggedIn(false);
-          setLoading(false);
         } else if (res.ok) {
           setLoggedIn(true);
         }
-      } catch {
-        setLoading(false);
-      }
+      } catch {}
+      setLoading(false);
     };
     check();
   }, []);

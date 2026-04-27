@@ -84,34 +84,42 @@ export const GET: APIRoute = async ({ request, cookies, url, clientAddress }) =>
     getStore("metrics"),
   ];
 
-  const cached = await photosStore.get("__order__", { type: "text" });
+  try {
+    var cached = await photosStore.get("__order__", { type: "text" });
+  } catch {
+    return new Response(JSON.stringify({ error: "Failed to read order cache" }), { status: 500, headers: { "Content-Type": "application/json" } });
+  }
   if (!cached) {
     return new Response(JSON.stringify({ error: "Order cache not found" }), { status: 404, headers: { "Content-Type": "application/json" } });
   }
   const allKeys: string[] = JSON.parse(cached);
 
-  const [starsBlobs, metricsBlobs] = await Promise.all([
-    starsStore.list(),
-    metricsStore.list(),
-  ]);
+  let starsBlobs: { key: string }[] = [];
+  let metricsBlobs: { key: string }[] = [];
+  try {
+    const [sb, mb] = await Promise.all([
+      starsStore.list(),
+      metricsStore.list(),
+    ]);
+    starsBlobs = sb.blobs;
+    metricsBlobs = mb.blobs;
+  } catch {}
 
   const stars: Record<string, number> = {};
-  const metrics: Record<string, { v: number; d: number }> = {};
+  for (const b of starsBlobs) {
+    try {
+      const raw = await starsStore.get(b.key, { type: "text" });
+      stars[b.key] = raw ? parseInt(raw, 10) : 0;
+    } catch {}
+  }
 
-  await Promise.all([
-    ...starsBlobs.blobs.map(async (b) => {
-      try {
-        const raw = await starsStore.get(b.key, { type: "text" });
-        stars[b.key] = raw ? parseInt(raw, 10) : 0;
-      } catch {}
-    }),
-    ...metricsBlobs.blobs.map(async (b) => {
-      try {
-        const raw = await metricsStore.get(b.key, { type: "text" });
-        if (raw) metrics[b.key] = JSON.parse(raw);
-      } catch {}
-    }),
-  ]);
+  const metrics: Record<string, { v: number; d: number }> = {};
+  for (const b of metricsBlobs) {
+    try {
+      const raw = await metricsStore.get(b.key, { type: "text" });
+      if (raw) metrics[b.key] = JSON.parse(raw);
+    } catch {}
+  }
 
   const rows = allKeys.map((key) => {
     const s = stars[key] || 0;
