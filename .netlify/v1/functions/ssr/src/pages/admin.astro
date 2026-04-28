@@ -75,6 +75,78 @@ import AdminApp from "../components/AdminApp";
   }
   .photo-grid-header h2 { font-size: 16px; }
 
+  .bookmark-section {
+    margin-bottom: 24px;
+  }
+  .bookmark-section h2 {
+    font-size: 16px;
+    margin-bottom: 4px;
+  }
+  .bookmark-hint {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+  .bookmark-hint code {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 12px;
+  }
+  .bookmark-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .bookmark-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+  }
+  .bookmark-thumb {
+    width: 48px;
+    height: 36px;
+    object-fit: cover;
+    border-radius: 4px;
+    background: #111;
+    flex-shrink: 0;
+  }
+  .bookmark-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .bookmark-info strong {
+    font-size: 14px;
+  }
+  .bookmark-key {
+    font-size: 11px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .bookmark-form {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .bookmark-form input {
+    flex: 1;
+    min-width: 0;
+  }
+  .bookmark-form button {
+    flex-shrink: 0;
+  }
+
   .empty-state {
     text-align: center;
     padding: 40px;
@@ -195,6 +267,12 @@ import AdminApp from "../components/AdminApp";
     }
     .stats-summary {
       grid-template-columns: repeat(2, 1fr);
+    }
+    .bookmark-form {
+      flex-wrap: wrap;
+    }
+    .bookmark-form input {
+      width: 100%;
     }
     .metrics-table {
       font-size: 12px;

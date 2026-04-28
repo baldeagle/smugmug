@@ -68,6 +68,9 @@ function AdminApp() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [dragOver, setDragOver] = useState(false);
+  const [bookmarks, setBookmarks] = useState([]);
+  const [bmName, setBmName] = useState("");
+  const [bmKey, setBmKey] = useState("");
   const fileInput = useRef(null);
   const showToast = (message, type) => {
     setToast({ message, type });
@@ -177,6 +180,49 @@ function AdminApp() {
     }
     setPage(1);
   };
+  const fetchBookmarks = async () => {
+    try {
+      const res = await fetch("/api/bookmarks");
+      if (res.ok) {
+        const data = await res.json();
+        setBookmarks(data.bookmarks || []);
+      }
+    } catch {
+    }
+  };
+  useEffect(() => {
+    if (loggedIn) fetchBookmarks();
+  }, [loggedIn]);
+  const addBookmark = async (e) => {
+    e.preventDefault();
+    if (!bmName.trim() || !bmKey.trim()) return;
+    const res = await fetch("/api/bookmarks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: bmName.trim(), key: bmKey.trim() })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setBookmarks(data.bookmarks || []);
+      setBmName("");
+      setBmKey("");
+      showToast("Bookmark added", "success");
+    } else if (res.status === 401) {
+      setLoggedIn(false);
+    } else {
+      showToast("Failed to add bookmark", "error");
+    }
+  };
+  const deleteBookmark = async (id) => {
+    const res = await fetch(`/api/bookmarks?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (res.ok) {
+      const data = await res.json();
+      setBookmarks(data.bookmarks || []);
+      showToast("Bookmark deleted", "success");
+    } else {
+      showToast("Failed to delete bookmark", "error");
+    }
+  };
   const sortIndicator = (field) => {
     if (sort !== field) return " ↕";
     return dir === "asc" ? " ▲" : " ▼";
@@ -245,6 +291,46 @@ function AdminApp() {
         ]
       }
     ),
+    /* @__PURE__ */ jsxs("div", { className: "bookmark-section", children: [
+      /* @__PURE__ */ jsx("h2", { children: "Gallery Bookmarks" }),
+      /* @__PURE__ */ jsxs("p", { className: "bookmark-hint", children: [
+        "Jump points shown above the gallery slideshow. Get the photo key from the gallery URL (",
+        /* @__PURE__ */ jsxs("code", { children: [
+          "/photo/",
+          "{key}"
+        ] }),
+        ")."
+      ] }),
+      bookmarks.length > 0 && /* @__PURE__ */ jsx("div", { className: "bookmark-list", children: bookmarks.map((bm) => /* @__PURE__ */ jsxs("div", { className: "bookmark-card", children: [
+        /* @__PURE__ */ jsx("img", { src: bm.thumbUrl, alt: bm.name, className: "bookmark-thumb" }),
+        /* @__PURE__ */ jsxs("div", { className: "bookmark-info", children: [
+          /* @__PURE__ */ jsx("strong", { children: bm.name }),
+          /* @__PURE__ */ jsx("span", { className: "bookmark-key", children: bm.key })
+        ] }),
+        /* @__PURE__ */ jsx("button", { className: "btn-danger btn-sm", onClick: () => deleteBookmark(bm.id), children: "Delete" })
+      ] }, bm.id)) }),
+      /* @__PURE__ */ jsxs("form", { className: "bookmark-form", onSubmit: addBookmark, children: [
+        /* @__PURE__ */ jsx(
+          "input",
+          {
+            type: "text",
+            placeholder: "Section name (e.g. Trainings Fri Night)",
+            value: bmName,
+            onChange: (e) => setBmName(e.target.value)
+          }
+        ),
+        /* @__PURE__ */ jsx(
+          "input",
+          {
+            type: "text",
+            placeholder: "Photo key (from gallery URL)",
+            value: bmKey,
+            onChange: (e) => setBmKey(e.target.value)
+          }
+        ),
+        /* @__PURE__ */ jsx("button", { type: "submit", className: "btn-primary", disabled: !bmName.trim() || !bmKey.trim(), children: "Add" })
+      ] })
+    ] }),
     /* @__PURE__ */ jsxs("div", { className: "stats-summary", children: [
       /* @__PURE__ */ jsxs("div", { className: "stat-card", children: [
         /* @__PURE__ */ jsx("span", { className: "stat-value", children: total.toLocaleString() }),

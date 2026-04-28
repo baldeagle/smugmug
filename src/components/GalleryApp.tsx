@@ -34,6 +34,12 @@ function slideUrl(key: string): string {
   return `/api/photo/${encodeURIComponent(key)}`;
 }
 
+interface Bookmark {
+  id: string;
+  name: string;
+  key: string;
+}
+
 interface Props {
   initialPhotoKey?: string;
   mode?: "gallery" | "highlights";
@@ -54,6 +60,7 @@ export default function GalleryApp({ initialPhotoKey, mode = "gallery" }: Props)
   const [fetchingMore, setFetchingMore] = useState(false);
   const [globalOffset, setGlobalOffset] = useState(0);
   const [shareToast, setShareToast] = useState(false);
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const nextPageRef = useRef(2);
   const autoPlayRef = useRef<ReturnType<typeof setTimeout>>(null);
   const slideRef = useRef<HTMLDivElement>(null);
@@ -99,8 +106,28 @@ export default function GalleryApp({ initialPhotoKey, mode = "gallery" }: Props)
     setCurrent(currentIdx - keepFrom);
   }, []);
 
+  const jumpToPhoto = useCallback(async (key: string) => {
+    const limit = getPageSize();
+    try {
+      const pageRes = await fetch(`/api/photo-page?key=${encodeURIComponent(key)}`);
+      if (!pageRes.ok) return;
+      const { index } = await pageRes.json();
+      const targetPage = Math.floor(index / limit) + 1;
+      const photoRes = await fetch(`/api/photos?page=${targetPage}&limit=${limit}`);
+      const photoData = await photoRes.json();
+      const pagePhotos: Photo[] = photoData?.photos || [];
+      setTotal(photoData?.total || 0);
+      setPhotos(pagePhotos);
+      const idxInPage = index - (targetPage - 1) * limit;
+      setCurrent(idxInPage);
+      setGlobalOffset((targetPage - 1) * limit);
+      nextPageRef.current = targetPage + 1;
+      const totalPages = photoData?.totalPages || 1;
+      setHasMore(targetPage < totalPages);
+    } catch {}
+  }, []);
+
   useEffect(() => {
-    if (photos.length === 0 || current >= photos.length) return;
     const photo = photos[current];
     if (!photo) return;
 
@@ -189,6 +216,16 @@ export default function GalleryApp({ initialPhotoKey, mode = "gallery" }: Props)
       const starRes = await fetch("/api/stars");
       const starData = await starRes.json();
       setStars(starData);
+
+      if (mode === "gallery") {
+        try {
+          const bmRes = await fetch("/api/bookmarks");
+          if (bmRes.ok) {
+            const bmData = await bmRes.json();
+            setBookmarks(bmData.bookmarks || []);
+          }
+        } catch {}
+      }
 
       const endpoint = mode === "highlights" ? "/api/highlights" : "/api/photos";
 
@@ -411,8 +448,21 @@ export default function GalleryApp({ initialPhotoKey, mode = "gallery" }: Props)
           : "Star your favorites or share a photo to boost it into the Highlights reel!"}
       </div>
 
+      {mode === "gallery" && bookmarks.length > 0 && (
+        <div className="bookmark-bar">
+          {bookmarks.map((bm) => (
+            <button
+              key={bm.id}
+              className={`bookmark-chip ${photo.key === bm.key ? "active" : ""}`}
+              onClick={() => jumpToPhoto(bm.key)}
+            >
+              {bm.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div
-        className="slide-container"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >

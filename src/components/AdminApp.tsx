@@ -76,6 +76,9 @@ export default function AdminApp() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [bookmarks, setBookmarks] = useState<{ id: string; name: string; key: string; thumbUrl: string; filename: string }[]>([]);
+  const [bmName, setBmName] = useState("");
+  const [bmKey, setBmKey] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
 
   const showToast = (message: string, type: "success" | "error") => {
@@ -193,6 +196,52 @@ export default function AdminApp() {
     setPage(1);
   };
 
+  const fetchBookmarks = async () => {
+    try {
+      const res = await fetch("/api/bookmarks");
+      if (res.ok) {
+        const data = await res.json();
+        setBookmarks(data.bookmarks || []);
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (loggedIn) fetchBookmarks();
+  }, [loggedIn]);
+
+  const addBookmark = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bmName.trim() || !bmKey.trim()) return;
+    const res = await fetch("/api/bookmarks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: bmName.trim(), key: bmKey.trim() }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setBookmarks(data.bookmarks || []);
+      setBmName("");
+      setBmKey("");
+      showToast("Bookmark added", "success");
+    } else if (res.status === 401) {
+      setLoggedIn(false);
+    } else {
+      showToast("Failed to add bookmark", "error");
+    }
+  };
+
+  const deleteBookmark = async (id: string) => {
+    const res = await fetch(`/api/bookmarks?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (res.ok) {
+      const data = await res.json();
+      setBookmarks(data.bookmarks || []);
+      showToast("Bookmark deleted", "success");
+    } else {
+      showToast("Failed to delete bookmark", "error");
+    }
+  };
+
   const sortIndicator = (field: SortField) => {
     if (sort !== field) return " \u2195";
     return dir === "asc" ? " \u25B2" : " \u25BC";
@@ -264,6 +313,46 @@ export default function AdminApp() {
             </>
           )}
         </div>
+      </div>
+
+      <div className="bookmark-section">
+        <h2>Gallery Bookmarks</h2>
+        <p className="bookmark-hint">Jump points shown above the gallery slideshow. Get the photo key from the gallery URL (<code>/photo/{"{key}"}</code>).</p>
+
+        {bookmarks.length > 0 && (
+          <div className="bookmark-list">
+            {bookmarks.map((bm) => (
+              <div key={bm.id} className="bookmark-card">
+                <img src={bm.thumbUrl} alt={bm.name} className="bookmark-thumb" />
+                <div className="bookmark-info">
+                  <strong>{bm.name}</strong>
+                  <span className="bookmark-key">{bm.key}</span>
+                </div>
+                <button className="btn-danger btn-sm" onClick={() => deleteBookmark(bm.id)}>
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <form className="bookmark-form" onSubmit={addBookmark}>
+          <input
+            type="text"
+            placeholder="Section name (e.g. Trainings Fri Night)"
+            value={bmName}
+            onChange={(e) => setBmName(e.target.value)}
+          />
+          <input
+            type="text"
+            placeholder="Photo key (from gallery URL)"
+            value={bmKey}
+            onChange={(e) => setBmKey(e.target.value)}
+          />
+          <button type="submit" className="btn-primary" disabled={!bmName.trim() || !bmKey.trim()}>
+            Add
+          </button>
+        </form>
       </div>
 
       <div className="stats-summary">

@@ -45,6 +45,39 @@ import GalleryApp from "../components/GalleryApp";
     flex-shrink: 0;
   }
 
+  .bookmark-bar {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 2px 0;
+    flex-shrink: 0;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .bookmark-bar::-webkit-scrollbar { display: none; }
+  .bookmark-chip {
+    flex-shrink: 0;
+    padding: 6px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .bookmark-chip:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .bookmark-chip.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
   .pagination {
     display: flex;
     align-items: center;
