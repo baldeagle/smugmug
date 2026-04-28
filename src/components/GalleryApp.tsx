@@ -42,10 +42,11 @@ interface Bookmark {
 
 interface Props {
   initialPhotoKey?: string;
-  mode?: "gallery" | "highlights";
+  mode?: "gallery" | "highlights" | "fighter";
+  fighterId?: number;
 }
 
-export default function GalleryApp({ initialPhotoKey, mode = "gallery" }: Props) {
+export default function GalleryApp({ initialPhotoKey, mode = "gallery", fighterId }: Props) {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [stars, setStars] = useState<Record<string, number>>({});
   const [myStars, setMyStars] = useState<Set<string>>(new Set());
@@ -227,6 +228,21 @@ export default function GalleryApp({ initialPhotoKey, mode = "gallery" }: Props)
         } catch {}
       }
 
+      if (mode === "fighter" && fighterId != null) {
+        try {
+          const fighterRes = await fetch(`/api/fighters?id=${fighterId}&sort=action`);
+          if (fighterRes.ok) {
+            const fighterData = await fighterRes.json();
+            setPhotos(fighterData.photos || []);
+            setTotal(fighterData.photos?.length || 0);
+            setCurrent(0);
+            setHasMore(false);
+          }
+        } catch {}
+        setLoading(false);
+        return;
+      }
+
       const endpoint = mode === "highlights" ? "/api/highlights" : "/api/photos";
 
       const photoKey = initialPhotoKey || new URLSearchParams(window.location.search).get("photo");
@@ -267,7 +283,7 @@ export default function GalleryApp({ initialPhotoKey, mode = "gallery" }: Props)
     };
 
     loadInitial();
-  }, [initialPhotoKey, mode]);
+  }, [initialPhotoKey, mode, fighterId]);
 
   useEffect(() => {
     if (hasMore && !fetchingMore && photos.length > 0 && current >= photos.length - 3) {

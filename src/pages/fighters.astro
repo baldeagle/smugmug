@@ -1,0 +1,108 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import FighterGrid from "../components/FighterGrid";
+---
+
+<BaseLayout title="Find Capoeirista" description="Find your photos from the event">
+  <FighterGrid client:load />
+</BaseLayout>
+
+<style is:global>
+  .fighter-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: calc(100vh - 200px);
+    color: var(--text-muted);
+  }
+
+  .fighter-wall-header {
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .fighter-wall-header h2 {
+    font-size: 18px;
+    margin-bottom: 4px;
+  }
+  .fighter-count {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .fighter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+  }
+
+  .fighter-thumb {
+    aspect-ratio: 1;
+    border-radius: var(--radius);
+    overflow: hidden;
+    padding: 0;
+    background: #111;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.15s;
+  }
+  .fighter-thumb:hover {
+    border-color: var(--accent);
+    transform: scale(1.03);
+    z-index: 1;
+  }
+  .fighter-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .fighter-gallery {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .fighter-gallery-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .fighter-sort {
+    display: flex;
+    gap: 4px;
+  }
+  .fighter-sort .btn-ghost {
+    font-size: 13px;
+    padding: 4px 12px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+  }
+  .fighter-sort .btn-ghost.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+
+  @media (max-width: 900px) {
+    .fighter-grid {
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    }
+  }
+
+  @media (max-width: 640px) {
+    .fighter-grid {
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 6px;
+    }
+    .fighter-thumb {
+      border-radius: 6px;
+    }
+    .fighter-wall-header h2 {
+      font-size: 16px;
+    }
+  }
+</style>
