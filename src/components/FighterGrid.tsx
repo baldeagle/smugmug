@@ -69,7 +69,7 @@ export default function FighterGrid() {
   return (
     <div className="fighter-wall">
       <div className="fighter-wall-header">
-        <h2>Find Capoeirista — click your face!</h2>
+        <h2>Capoeiristas — click your face!</h2>
         <p className="fighter-count">{fighters.length} people found</p>
       </div>
       <div className="fighter-grid">

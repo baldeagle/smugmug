@@ -1,6 +1,6 @@
 import { renderers } from './renderers.mjs';
 import { s as serverEntrypointModule } from './chunks/_@astrojs-ssr-adapter_CvSoi7hX.mjs';
-import { manifest } from './manifest_D83uGiMg.mjs';
+import { manifest } from './manifest_DatM7pyU.mjs';
 import { createExports } from '@astrojs/netlify/ssr-function.js';
 
 const serverIslandMap = new Map();;
@@ -21,7 +21,7 @@ const _page12 = () => import('./pages/api/star/_key_.astro.mjs');
 const _page13 = () => import('./pages/api/stars.astro.mjs');
 const _page14 = () => import('./pages/api/thumb/_key_.astro.mjs');
 const _page15 = () => import('./pages/api/upload.astro.mjs');
-const _page16 = () => import('./pages/fighters.astro.mjs');
+const _page16 = () => import('./pages/capoeiristas.astro.mjs');
 const _page17 = () => import('./pages/highlights.astro.mjs');
 const _page18 = () => import('./pages/photo/_key_.astro.mjs');
 const _page19 = () => import('./pages/index.astro.mjs');
@@ -42,7 +42,7 @@ const pageMap = new Map([
     ["src/pages/api/stars.ts", _page13],
     ["src/pages/api/thumb/[key].ts", _page14],
     ["src/pages/api/upload.ts", _page15],
-    ["src/pages/fighters.astro", _page16],
+    ["src/pages/capoeiristas.astro", _page16],
     ["src/pages/highlights.astro", _page17],
     ["src/pages/photo/[key].astro", _page18],
     ["src/pages/index.astro", _page19]
@@ -56,7 +56,7 @@ const _manifest = Object.assign(manifest, {
     middleware: () => import('./_noop-middleware.mjs')
 });
 const _args = {
-    "middlewareSecret": "12330322-efb8-4e6f-b74c-b882f5ba1ffe"
+    "middlewareSecret": "832af2c7-aebb-470d-8286-be8121e7fedb"
 };
 const _exports = createExports(_manifest, _args);
 const __astrojsSsrVirtualEntry = _exports.default;

@@ -83,7 +83,7 @@ export const GET: APIRoute = async ({ url, request, clientAddress }) => {
     fighters.push({
       id: f.id,
       totalPhotos: f.total_photos,
-      thumbUrl: thumbUrl(first.filename),
+      thumbUrl: thumbUrl(filenameFromKey(key)),
     });
   }
 
