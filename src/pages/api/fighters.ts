@@ -64,7 +64,7 @@ export const GET: APIRoute = async ({ url, request, clientAddress }) => {
     for (const p of sorted) {
       const key = map.get(p.filename.toLowerCase());
       if (key) {
-        photos.push({ key, filename: p.filename });
+        photos.push({ key, filename: filenameFromKey(key) });
       }
     }
 
